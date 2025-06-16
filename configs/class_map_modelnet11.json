@@ -1,0 +1,16 @@
+{
+    "bed": 0,
+    "dresser": 1,
+    "wardrobe": 1,
+    "bench": 2,
+    "chair": 2,
+    "stool": 2,
+    "desk": 3,
+    "monitor": 4,
+    "door": 5,
+    "bookshelf": 6,
+    "sink": 7,
+    "sofa": 8,
+    "table": 9,
+    "toilet": 10
+}
