@@ -23,13 +23,13 @@ def main(exp_name):
     assert checkpoint_path.exists(), f"Checkpoint not found at {checkpoint_path}"
 
     config = load_config(config_path)
-    device = torch.device(config.get("device", "cuda"))
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     # Load dataset
     test_set, rotation_vote, num_votes = get_dataset(config, "test_dataset")
     test_loader = DataLoader(
         test_set,
-        batch_size=config["batch_size"],
+        batch_size=config.get("batch_size", 32),
         shuffle=False,
         num_workers=config.get("num_workers", 4)
     )

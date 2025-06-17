@@ -1,12 +1,14 @@
 import torch
 from pathlib import Path
 
+from utils.model_utils import unwrap_model
+
 def save_checkpoint(encoder, head, optimizer, scheduler, epoch, best_acc, exp_dir, is_best=False):
     checkpoint = {
-        'encoder_state_dict': encoder.state_dict(),
-        'head_state_dict': head.state_dict(),
-        'optimizer_state_dict': optimizer.state_dict(),
-        'scheduler_state_dict': scheduler.state_dict(),
+        'encoder_state_dict': unwrap_model(encoder).state_dict(),
+        'head_state_dict': unwrap_model(head).state_dict(),
+        'optimizer_state_dict': unwrap_model(optimizer).state_dict(),
+        'scheduler_state_dict': unwrap_model(scheduler).state_dict(),
         'epoch': epoch + 1,
         'best_acc': best_acc
     }
