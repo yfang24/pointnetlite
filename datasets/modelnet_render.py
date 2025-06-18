@@ -5,6 +5,7 @@ import torch
 from torch.utils.data import Dataset
 from tqdm import tqdm
 
+import open3d as o3d
 from pytorch3d.structures import Meshes
 
 import utils.mesh_utils as mesh_utils
@@ -12,22 +13,22 @@ import utils.pcd_utils as pcd_utils
 from configs.load_class_map import load_class_map
 
 class ModelNetRender(Dataset):
-    def __init__(self, root_dir, class_map, split='train', num_points=1024, num_views=4, single_view=False, cache_dir=None, use_cache=True, device='cuda'):
+    def __init__(self, root_dir, class_map, split='train', num_points=1024, num_views=3, single_view=False, cache_dir=None, use_cache=True, device=torch.device('cuda')):
         self.root_dir = root_dir
         self.split = split
         self.num_points = num_points
         self.num_views = num_views
         self.single_view = single_view
-        self.device = torch.device(device)
+        self.device = device
         self.class_map = class_map if isinstance(class_map, dict) else load_class_map(class_map)
         
-        self.fixed_views = self._get_fixed_views(self.num_views)
+        self.viewpoints = self._get_viewpoints(self.num_views)
             
         self.cache_dir = cache_dir or os.path.join(root_dir, '_cache')
         os.makedirs(self.cache_dir, exist_ok=True)
         self.cache_file = os.path.join(
             self.cache_dir,
-            f'modelnetrender_{split}_{num_points}pts_{len(set(self.class_map.values()))}cls_{self.num_views}render.pkl'
+            f'modelnetrender_{split}_{num_points}pts_{len(set(self.class_map.values()))}cls_{self.num_views}view.pkl'
         )
 
         if use_cache and os.path.exists(self.cache_file):
@@ -45,7 +46,7 @@ class ModelNetRender(Dataset):
                     pickle.dump({'data': self.data.cpu(), 'labels': self.labels.cpu()}, f)       
                     
         self.base_len = len(self.data) // self.num_views
-        print(f"\n[ModelNetRender] Loaded {len(self.data)} samples: {self.base_len} objects x {self.num_views} views, across {len(set(self.labels))} classes.")
+        print(f"\n[ModelNetRender] Loaded {len(self.labels)} samples: {self.base_len} objects x {self.num_views} views, across {len(set(self.labels.tolist()))} classes.")
 
     def __len__(self):
         return self.base_len if self.single_view else len(self.labels)
@@ -73,7 +74,7 @@ class ModelNetRender(Dataset):
                 file_list = sorted([f for f in os.listdir(class_dir) if f.endswith('.off')])
 
                 print(f"[{class_idx+1}/{len(self.class_map)}] Class '{class_name}' ({split}): {len(file_list)} files")
-                for fname in tqdm(file_list, desc=f"  ? Rendering {class_name}", leave=False):
+                for fname in tqdm(file_list, desc=f"    Rendering {class_name}", leave=False):
                     mesh_path = os.path.join(class_dir, fname)
                     mesh = o3d.io.read_triangle_mesh(mesh_path)
                     mesh = mesh_utils.align_mesh(mesh, class_name)
@@ -84,8 +85,8 @@ class ModelNetRender(Dataset):
                     faces = torch.tensor(faces_np, dtype=torch.int64)
                     mesh_torch = Meshes(verts=[verts], faces=[faces]).to(self.device)
 
-                    for view_vec in self.fixed_views:
-                        points = mesh_utils.render_mesh_torch(mesh_torch, view_vec.to(self.device), num_points=self.num_points, device=self.device)
+                    for camera_pos in self.viewpoints:
+                        points = mesh_utils.render_mesh_torch(mesh_torch, camera_pos.to(self.device), num_points=self.num_points, device=self.device)
                         
                         points[:, [0, 2]] *= -1
                         center = points.mean(dim=0, keepdim=True)
@@ -96,26 +97,23 @@ class ModelNetRender(Dataset):
                         data.append(points)
                         labels.append(label)
 
-        return torch.stack(data, dtype=torch.float32).to(self.device), \
-               torch.tensor(labels, dtype=torch.long).to(self.device)
+        return torch.stack(data).float().to(self.device), \
+               torch.tensor(labels).long().to(self.device)
 
-    def _get_fixed_views(self, num_views):
-        # Similar to get_fixed_viewpoints()
-        if num_views == 4:
-            directions = [
-                [ 0,  1,  0],  # top-down
-                [ 0,  0,  1],  # front
-                [ 1,  0,  1],  # front-side
-                [-1,  0,  1],  # other front-side
-            ]
-        elif num_views == 6:
-            directions = [
-                [ 0,  1,  0], [ 0, 0, 1], [ 1, 0, 0],
-                [-1, 0, 0], [ 1, 0, 1], [-1, 0, 1]
-            ]
+    def _get_viewpoints(self, num_views):
+        if num_views == 3:
+            bases = torch.tensor([
+                [ 0,  1,  1],  # front-up
+                [ -1,  1,  1],  # left-front-up
+                [ 1,  0,  1],  # right-front
+            ], dtype=torch.float32)
         else:
             raise ValueError(f"Unsupported number of views: {num_views}")
-        return [torch.tensor(v, dtype=torch.float32) / torch.norm(torch.tensor(v, dtype=torch.float32)) for v in directions]
+        
+        distance = torch.tensor([2.5, 2.5, 2.5], dtype=torch.float32)  # (x, y, z) scale
+        flip = torch.tensor([-1, 1, -1], dtype=torch.float32)  # Open3D to PyTorch3D coord flip
+        
+        return bases * distance * flip  # shape: (num_views, 3)
 
 
 if __name__ == "__main__":
@@ -128,8 +126,7 @@ if __name__ == "__main__":
 
     split = "train"
     
-    with open(CLASS_MAP_PATH, 'r') as f:
-        class_map = json.load(f)
+    class_map = load_class_map(CLASS_MAP_PATH)
     inv_class_map = {v: k for k, v in class_map.items()}
 
     dataset = ModelNetRender(
@@ -140,15 +137,15 @@ if __name__ == "__main__":
     )
             
     # Pick a sample object
+    print("[ModelNetRender] Collecting all vuews of a sample object for visualization...")
     idx = 0
     num_views = dataset.num_views
     start = idx * num_views
     end = (idx + 1) * num_views
     views = dataset.data[start:end].cpu().numpy()
     label = dataset.labels[start].cpu().numpy()
-    class_name = inv_class_map[label]
-
-    print(f"\n[Sample {idx}] Class: {class_name}, Views: {num_views}, Points per view: {views[0].shape[0]}")
-
+    class_name = inv_class_map[int(label)]
+    
     # Visualize all views together
+    print(f"\n[Sample {idx}] Class: {class_name}, Views: {num_views}, Points per view: {views[0].shape[0]}")    
     pcd_utils.viz_pcd([v for v in views])

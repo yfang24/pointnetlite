@@ -13,9 +13,23 @@ from models.losses.get_loss import get_loss
 from utils.train_utils import evaluate
 from utils.checkpoint_utils import load_checkpoint
 
-def main(exp_name):
+def main(exp_name):    
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-exp", "--exp_name", type=str, required=True,
+                    help="Experiment folder name (e.g., pointnet_test_20250612_103045)")
+    parser.add_argument(
+        "-ckpt", "--ckpt_type", type=str, choices=["best", "last"], default="best",
+        help="Which checkpoint to use: 'best' (default) or 'last'"
+    )
+    parser.add_argument(
+        "-cm", "--confusion_matrix", action="store_true",
+        help="Whether to show the confusion matrix"
+    )
+
+    args = parser.parse_args()
+
     root_dir = Path(__file__).resolve().parent
-    exp_dir = root_dir / "experiments" / exp_name
+    exp_dir = root_dir / "experiments" / args.exp_name
     config_path = exp_dir / "config.yaml"
     checkpoint_path = exp_dir / f"checkpoint_{args.ckpt_type}.pth"
 
@@ -47,22 +61,14 @@ def main(exp_name):
     )
 
     # Plot confusion matrix
-    class_names = getattr(test_set, "class_names", [str(i) for i in range(test_cm.shape[0])])
-    disp = ConfusionMatrixDisplay(confusion_matrix=test_cm, display_labels=class_names)
-    disp.plot(xticks_rotation=45, cmap="Blues")
-    plt.title("Confusion Matrix")
-    plt.tight_layout()
-    plt.savefig(exp_dir / "confusion_matrix.png")
-    plt.show()
+    if args.confusion_matrix:
+        class_names = getattr(test_set, "class_names", [str(i) for i in range(test_cm.shape[0])])
+        disp = ConfusionMatrixDisplay(confusion_matrix=test_cm, display_labels=class_names)
+        disp.plot(xticks_rotation=45, cmap="Blues")
+        plt.title("Confusion Matrix")
+        plt.tight_layout()
+        plt.savefig(exp_dir / "confusion_matrix.png")
+        plt.show()
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("-n", "--exp_name", type=str, required=True,
-                    help="Experiment folder name (e.g., pointnet_test_20250612_103045)")
-    parser.add_argument(
-        "-c", "--ckpt_type", type=str, choices=["best", "last"], default="best",
-        help="Which checkpoint to use: 'best' (default) or 'last'"
-    )
-    args = parser.parse_args()
-
-    main(args.exp_name)
+    main()

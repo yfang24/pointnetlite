@@ -22,7 +22,7 @@ def sample_mesh_torch(mesh, num_points):
     
 def render_mesh_torch(
     mesh: Meshes,
-    view_vector: torch.Tensor,
+    camera_pos: torch.Tensor,
     num_points: int = 1024,
     # image_size: int = 256,
     image_width: int = 320,
@@ -30,9 +30,9 @@ def render_mesh_torch(
     max_attempts: int = 3,
     device: torch.device = torch.device('cuda')
 ) -> torch.Tensor:
+    camera_pos.to(device)
+    view_vector = - camera_pos
     view_vector = view_vector / (torch.norm(view_vector, dim=-1, keepdim=True) + 1e-8)
-    distance = 2.5
-    camera_pos = - view_vector * distance
     up = torch.tensor([0., 1., 0.], device=device)
     if torch.allclose(torch.abs(torch.dot(view_vector, up)), torch.tensor(1.0, device=view_vector.device), atol=1e-3):
         up = torch.tensor([1., 0., 0.], device=device) # If colinear, switch

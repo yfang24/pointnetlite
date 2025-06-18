@@ -60,7 +60,7 @@ class ModelNet(Dataset):
                 file_list = sorted([f for f in os.listdir(class_split_dir) if f.endswith('.off')])
     
                 print(f"[{class_idx+1}/{total_classes}] Class '{class_name}' ({split}): {len(file_list)} files")
-                for fname in tqdm(file_list, desc=f"Processing {class_name}", leave=False):
+                for fname in tqdm(file_list, desc=f"    Processing {class_name}", leave=False):
                     mesh_path = os.path.join(class_split_dir, fname)
                     mesh = o3d.io.read_triangle_mesh(mesh_path)
                     mesh = mesh_utils.align_mesh(mesh, class_name)
@@ -96,18 +96,20 @@ if __name__ == "__main__":
     class_names = list(dataset.class_map.keys())
 
     # Collect one example per class for visualization
-    seen_labels = set()
-    sample_points = []
-
-    print("[ModelNet] Collecting 1 sample per class for visualization...")
-    for i in range(len(dataset)):
-        points, label = dataset[i]
-        if label not in seen_labels:
-            sample_points.append(points)
-            seen_labels.add(label)
-            print(f"  - Class {label:2d} ({class_names[label]:>15}): points shape = {points.shape}")
-        if len(seen_labels) == len(class_names):
-            break
-
-    print(f"\nVisualizing {len(sample_points)} point clouds (1 per class)...")
-    pcd_utils.viz_pcd(sample_points)    
+    viz = True
+    if viz: 
+      seen_labels = set()
+      sample_points = []
+  
+      print("[ModelNet] Collecting 1 sample per class for visualization...")
+      for i in range(len(dataset)):
+          points, label = dataset[i]
+          if label not in seen_labels:
+              sample_points.append(points)
+              seen_labels.add(label)
+              print(f"  - Class {label:2d} ({class_names[label]:>15}): points shape = {points.shape}")
+          if len(seen_labels) == len(class_names):
+              break
+  
+      print(f"\nVisualizing {len(sample_points)} point clouds (1 per class)...")
+      pcd_utils.viz_pcd(sample_points)    

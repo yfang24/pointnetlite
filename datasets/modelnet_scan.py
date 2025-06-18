@@ -44,7 +44,7 @@ class ModelNetScan(Dataset):
                     pickle.dump({'data': self.data, 'labels': self.labels}, f)
             
         self.base_len = len(self.data) // self.num_views
-        print(f"\n[ModelNetScan] Loaded {len(self.data)} samples: {self.base_len} objects x {self.num_views} views, across {len(set(self.labels))} classes.")
+        print(f"\n[ModelNetScan] Loaded {len(self.labels)} samples: {self.base_len} objects x {self.num_views} views, across {len(set(self.labels.tolist()))} classes.")
 
     def __len__(self):
         return self.base_len if self.single_view else len(self.labels)
@@ -72,8 +72,8 @@ class ModelNetScan(Dataset):
                     continue
                 file_list = sorted([f for f in os.listdir(class_split_dir) if f.endswith('.off')])
 
-                print(f"[{class_idx + 1}/{total_classes}] Class '{class_name}' ({split}): {len(file_list)} files")
-                for fname in tqdm(file_list, desc=f"  ? Scanning {class_name}", leave=False):
+                tqdm.write(f"[{class_idx + 1}/{total_classes}] Class '{class_name}' ({split}): {len(file_list)} files")
+                for fname in tqdm(file_list, desc=f"Scanning {class_name}", leave=False):
                     mesh_path = os.path.join(class_split_dir, fname)
                     mesh = o3d.io.read_triangle_mesh(mesh_path)
                     mesh = mesh_utils.align_mesh(mesh, class_name)
@@ -92,12 +92,14 @@ class ModelNetScan(Dataset):
 if __name__ == "__main__":
 
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-    DATA_DIR = os.path.join(BASE_DIR, "../../data/modelnet40_manually_aligned")
-    CLASS_MAP_PATH = os.path.join(BASE_DIR, "../../configs/class_map_modelnet11.json")
+    PROJ_ROOT = os.path.abspath(os.path.join(BASE_DIR, "../.."))
+    
+    DATA_DIR = os.path.join(PROJ_ROOT, "data/modelnet40_manually_aligned")
+    CLASS_MAP_PATH = os.path.join(PROJ_ROOT, "code/configs/class_map_modelnet11.json")
+    
     split = "train"
     
-    with open(CLASS_MAP_PATH, 'r') as f:
-        class_map = json.load(f)
+    class_map = load_class_map(CLASS_MAP_PATH)
     inv_class_map = {v: k for k, v in class_map.items()}
 
     dataset = ModelNetScan(
@@ -106,17 +108,17 @@ if __name__ == "__main__":
         split=split,
         single_view=False  # or True
     )
-            
+    
     # Pick a sample object
+    print("[ModelNetScan] Collecting all vuews of a sample object for visualization...")
     idx = 0
     num_views = dataset.num_views
     start = idx * num_views
     end = (idx + 1) * num_views
-    views = dataset.data[start:end]
-    label = dataset.labels[start]       
-    class_name = inv_class_map[label]
-
-    print(f"\n[Sample {idx}] Class: {class_name}, Views: {num_views}, Points per view: {views[0].shape[0]}")
-
+    views = dataset.data[start:end].cpu().numpy()
+    label = dataset.labels[start].cpu().numpy()
+    class_name = inv_class_map[int(label)]
+    
     # Visualize all views together
+    print(f"\n[Sample {idx}] Class: {class_name}, Views: {num_views}, Points per view: {views[0].shape[0]}")    
     pcd_utils.viz_pcd([v for v in views])
