@@ -6,9 +6,9 @@ from models.modules.transformer_modules import TransformerEncoder
 
 # encode point cloud to 1024dims using pointnet-like encoder
 class PointGroupEncoder(nn.Module):
-    def __init__(self, encoder_channel=1024):
+    def __init__(self, encoder_dims=1024):
         super().__init__()
-        self.encoder_channel = encoder_channel
+        self.encoder_dims = encoder_dims
         self.first_conv = nn.Sequential(
             nn.Conv1d(3, 128, 1),
             nn.BatchNorm1d(128),
@@ -19,7 +19,7 @@ class PointGroupEncoder(nn.Module):
             nn.Conv1d(512, 512, 1),
             nn.BatchNorm1d(512),
             nn.ReLU(inplace=True),
-            nn.Conv1d(512, encoder_channel, 1)
+            nn.Conv1d(512, encoder_dims, 1)
         )
 
     def forward(self, x):
@@ -28,9 +28,9 @@ class PointGroupEncoder(nn.Module):
         x = self.first_conv(x)                                     # (BG, 256, N)
         x_global = torch.max(x, dim=2, keepdim=True)[0]            # (BG, 256, 1)
         x = torch.cat([x_global.expand(-1, -1, N), x], dim=1)      # (BG, 512, N)
-        x = self.second_conv(x)                                    # (BG, C, N)
-        x = torch.max(x, dim=2)[0]                                 # (BG, C)
-        return x.view(B, G, self.encoder_channel)                  # (B, G, C)
+        x = self.second_conv(x)                                    # (BG, D, N)
+        x = torch.max(x, dim=2)[0]                                 # (BG, D)
+        return x.view(B, G, self.encoder_dims)                  # (B, G, D)
         
         
 class PointMAEEncoder(nn.Module):
