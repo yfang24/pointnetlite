@@ -21,9 +21,9 @@ from models.heads.get_head import get_head
 from models.losses.get_loss import get_loss
 
 
-#=========
+#=====================
 #utils
-#=========
+#=====================
 def set_seed(seed):
     torch.manual_seed(seed)
     np.random.seed(seed)
@@ -31,44 +31,42 @@ def set_seed(seed):
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(seed)
 
-def get_optimizer(config, params):
+def get_optimizer(config, named_params): # named_params: list of (name, param) tuples, e.g., list(model.named_parameters())
     opt_cfg = config.get("optimizer", None)
-    
-    if opt_cfg is None:
-        return torch.optim.Adam(params, lr=0.001, weight_decay=0.0001)
 
-    opt_type = opt_cfg.get("name", "adam").lower()
+    if opt_cfg is None:
+        return torch.optim.Adam(
+            [p for _, p in named_params if p.requires_grad],
+            lr=0.001, weight_decay=0.0001
+        )
+
+    opt_type = opt_cfg.get("name", "adam")
     opt_args = opt_cfg.get("args", {})
+    weight_decay = opt_args.get("weight_decay", 0.05)
+
+    def add_weight_decay(named_params, weight_decay=0.05, skip_list=()):
+        decay, no_decay = [], []
+        for name, param in named_params:
+            if not param.requires_grad:
+                continue
+            if len(param.shape) == 1 or name.endswith(".bias") or 'token' in name or name in skip_list:
+                no_decay.append(param)
+            else:
+                decay.append(param)
+        return [
+            {'params': no_decay, 'weight_decay': 0.0},
+            {'params': decay, 'weight_decay': weight_decay}
+        ]
+    param_groups = add_weight_decay(named_params, weight_decay)
 
     if opt_type == "adamw":
-        # If params is a model, do param grouping
-        def add_weight_decay(params, weight_decay=0.05, skip_list=()):
-            decay, no_decay = [], []
-            for name, param in params:
-                if not param.requires_grad:
-                    continue
-                if len(param.shape) == 1 or name.endswith(".bias") or 'token' in name or name in skip_list:
-                    no_decay.append(param)
-                else:
-                    decay.append(param)
-            return [
-                {'params': no_decay, 'weight_decay': 0.},
-                {'params': decay, 'weight_decay': weight_decay}
-            ]
-
-        if isinstance(params, (list, tuple)) and isinstance(params[0], tuple):
-            # Assume params is model.named_parameters()
-            weight_decay = opt_args.get("weight_decay", 0.05)
-            param_groups = add_weight_decay(params, weight_decay)
-            return torch.optim.AdamW(param_groups, **opt_args)
-        else:
-            return torch.optim.AdamW(params, **opt_args)
-
+        return torch.optim.AdamW(param_groups, **opt_args)
     elif opt_type == "adam":
-        return torch.optim.Adam(params, **opt_args)
+        return torch.optim.Adam(param_groups, **opt_args)
+    elif opt_type == "sgd":
+        return torch.optim.SGD(param_groups, nesterov=True, **opt_args)
     else:
-        raise ValueError(f"Unsupported optimizer type: {opt_type}")
-
+        raise ValueError(f"Unsupported optimizer type: {opt_type}")        
 
 def get_scheduler(config, optimizer):
     sched_cfg = config.get("scheduler", None)
@@ -76,7 +74,7 @@ def get_scheduler(config, optimizer):
     if sched_cfg is None:
         return torch.optim.lr_scheduler.StepLR(optimizer, step_size=20, gamma=0.7)
 
-    sched_type = sched_cfg.get("name", "steplr").lower()
+    sched_type = sched_cfg.get("name", "steplr")
     sched_args = sched_cfg.get("args", {})
 
     if sched_type == "steplr":
@@ -97,9 +95,9 @@ def get_scheduler(config, optimizer):
         raise ValueError(f"Unsupported scheduler type: {sched_type}")
 
 
-#=========
-#finetune
-#=========
+#=====================
+#train
+#=====================
 def train_one_epoch(encoder, head, dataloader, loss_fn, optimizer, scheduler, device, logger=None):
     encoder.train()
     head.train()
@@ -111,7 +109,7 @@ def train_one_epoch(encoder, head, dataloader, loss_fn, optimizer, scheduler, de
     total = 0
 
     for batch in tqdm(dataloader, desc="Train", leave=False):
-        inputs, targets = batch[0].float().permute(0, 2, 1).to(device), batch[1].long().to(device)
+        inputs, targets = batch[0].float().to(device), batch[1].long().to(device)
 
         optimizer.zero_grad()
         embeddings = encoder(inputs)
@@ -153,7 +151,7 @@ def evaluate(encoder, head, dataloader, loss_fn, device, logger=None, rotation_v
     
     with torch.no_grad():
         for batch in tqdm(dataloader, desc="Eval", leave=False):
-            inputs, targets = batch[0].float().permute(0, 2, 1).to(device), batch[1].long().to(device)
+            inputs, targets = batch[0].float().to(device), batch[1].long().to(device)
 
             embeddings = encoder(inputs)
             outputs = head(embeddings)
@@ -282,7 +280,7 @@ def run_training(rank, world_size, local_rank, config, config_path, device, use_
     loss_fn = get_loss(config)
     
     # Optimizer + Scheduler
-    params = list(encoder.parameters()) + list(head.parameters())
+    params = list(encoder.named_parameters()) + list(head.named_parameters())
     optimizer = get_optimizer(config, params)
     scheduler = get_scheduler(config, optimizer)
 
@@ -341,9 +339,9 @@ def run_training(rank, world_size, local_rank, config, config_path, device, use_
         logger.info("Training complete.")
         
         
-#=========
+#=====================
 #pretrain
-#=========
+#=====================
 def pretrain_one_epoch(encoder, decoder, dataloader, loss_fn, optimizer, scheduler, device, logger=None):
     encoder.train()
     decoder.train()
@@ -357,8 +355,7 @@ def pretrain_one_epoch(encoder, decoder, dataloader, loss_fn, optimizer, schedul
         inputs = batch.float().to(device)  # (B, N, 3)
 
         optimizer.zero_grad()
-        x_vis, mask, neighborhoods, centers = encoder(inputs)
-        pred, target = decoder(x_vis, mask, neighborhoods, centers)
+        pred, target = decoder(encoder(inputs))
 
         loss = loss_fn(pred, target)
         loss.backward()
@@ -392,8 +389,7 @@ def pretrain_evaluate(encoder, decoder, dataloader, loss_fn, device, logger=None
         for batch in tqdm(dataloader, desc="Val", leave=False):
             inputs = batch.float().to(device)  # (B, N, 3)
 
-            x_vis, mask, neighborhoods, centers = encoder(inputs)
-            pred, target = decoder(x_vis, mask, neighborhoods, centers)
+            pred, target = decoder(encoder(inputs))
 
             loss = loss_fn(pred, target)
             total_loss += loss.item() * inputs.size(0)
