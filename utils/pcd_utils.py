@@ -5,6 +5,67 @@ import open3d as o3d
 from scipy.spatial.distance import cdist
 from sklearn.neighbors import NearestNeighbors
 
+#=====
+#fps-knn-group
+#=====
+def farthest_point_sample_gpu_batch(points, n):
+    '''
+    points: (B, N, 3) torch.Tensor
+    return: (B, n, 3)
+    '''
+    B, N, _ = points.shape
+    device = points.device
+    sampled_points = torch.zeros(B, n, 3, device=device)
+
+    for b in range(B):
+        sampled_points[b] = farthest_point_sample_gpu(points[b], n)
+
+    return sampled_points
+
+def knn_gather(points, centers, k):
+    '''
+    points: (B, N, 3)
+    centers: (B, G, 3)
+    return: (B, G, k) ? indices of k-NNs of each center in the full point cloud
+    '''
+    B, N, _ = points.shape
+    G = centers.shape[1]
+
+    dists = torch.cdist(centers, points)  # (B, G, N)
+    idx = dists.topk(k, dim=-1, largest=False)[1]  # (B, G, k)
+    return idx
+
+def group_points(points, idx):
+    '''
+    points: (B, N, 3)
+    idx: (B, G, k)
+    return: (B, G, k, 3)
+    '''
+    B, N, C = points.shape
+    B, G, K = idx.shape
+
+    idx_base = torch.arange(B, device=points.device).view(B, 1, 1) * N
+    idx = idx + idx_base
+    idx = idx.view(-1)
+    grouped = points.reshape(B * N, C)[idx, :].view(B, G, K, C)
+    return grouped
+
+def pointmae_group(points, num_group, group_size):
+    '''
+    points: (B, N, 3)
+    returns:
+      - neighborhoods: (B, G, M, 3)
+      - centers: (B, G, 3)
+    '''
+    centers = farthest_point_sample_gpu_batch(points, num_group)  # (B, G, 3)
+    idx = knn_gather(points, centers, group_size)  # (B, G, M)
+    neighborhoods = group_points(points, idx)      # (B, G, M, 3)
+    neighborhoods = neighborhoods - centers.unsqueeze(2)
+    return neighborhoods, centers
+
+#=====
+#my funcs
+#=====
 def knneigval(points, k=32):
     N = points.shape[0]
     eigvals = np.zeros(N)

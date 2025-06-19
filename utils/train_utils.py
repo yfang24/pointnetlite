@@ -7,6 +7,7 @@ import numpy as np
 from tqdm import tqdm
 from pathlib import Path
 from datetime import datetime
+from timm.scheduler.cosine_lr import CosineLRScheduler
 from torch.utils.data import DataLoader, DistributedSampler
 from torch.nn.parallel import DistributedDataParallel
 from sklearn.metrics import confusion_matrix
@@ -20,6 +21,9 @@ from models.heads.get_head import get_head
 from models.losses.get_loss import get_loss
 
 
+#=========
+#utils
+#=========
 def set_seed(seed):
     torch.manual_seed(seed)
     np.random.seed(seed)
@@ -27,7 +31,75 @@ def set_seed(seed):
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(seed)
 
+def get_optimizer(config, params):
+    opt_cfg = config.get("optimizer", None)
+    
+    if opt_cfg is None:
+        return torch.optim.Adam(params, lr=0.001, weight_decay=0.0001)
 
+    opt_type = opt_cfg.get("name", "adam").lower()
+    opt_args = opt_cfg.get("args", {})
+
+    if opt_type == "adamw":
+        # If params is a model, do param grouping
+        def add_weight_decay(params, weight_decay=0.05, skip_list=()):
+            decay, no_decay = [], []
+            for name, param in params:
+                if not param.requires_grad:
+                    continue
+                if len(param.shape) == 1 or name.endswith(".bias") or 'token' in name or name in skip_list:
+                    no_decay.append(param)
+                else:
+                    decay.append(param)
+            return [
+                {'params': no_decay, 'weight_decay': 0.},
+                {'params': decay, 'weight_decay': weight_decay}
+            ]
+
+        if isinstance(params, (list, tuple)) and isinstance(params[0], tuple):
+            # Assume params is model.named_parameters()
+            weight_decay = opt_args.get("weight_decay", 0.05)
+            param_groups = add_weight_decay(params, weight_decay)
+            return torch.optim.AdamW(param_groups, **opt_args)
+        else:
+            return torch.optim.AdamW(params, **opt_args)
+
+    elif opt_type == "adam":
+        return torch.optim.Adam(params, **opt_args)
+    else:
+        raise ValueError(f"Unsupported optimizer type: {opt_type}")
+
+
+def get_scheduler(config, optimizer):
+    sched_cfg = config.get("scheduler", None)
+
+    if sched_cfg is None:
+        return torch.optim.lr_scheduler.StepLR(optimizer, step_size=20, gamma=0.7)
+
+    sched_type = sched_cfg.get("name", "steplr").lower()
+    sched_args = sched_cfg.get("args", {})
+
+    if sched_type == "steplr":
+        return torch.optim.lr_scheduler.StepLR(optimizer, **sched_args)
+    elif sched_type == "coslr":
+        return CosineLRScheduler(
+            optimizer,
+            t_initial=sched_args.get("epochs", config.get("epochs", 200)),
+            t_mul=1,
+            lr_min=1e-6,
+            decay_rate=0.1,
+            warmup_lr_init=1e-6,
+            warmup_t=sched_args.get("initial_epochs", 10),
+            cycle_limit=1,
+            t_in_epochs=True
+        )
+    else:
+        raise ValueError(f"Unsupported scheduler type: {sched_type}")
+
+
+#=========
+#finetune
+#=========
 def train_one_epoch(encoder, head, dataloader, loss_fn, optimizer, scheduler, device, logger=None):
     encoder.train()
     head.train()
@@ -210,12 +282,9 @@ def run_training(rank, world_size, local_rank, config, config_path, device, use_
     loss_fn = get_loss(config)
     
     # Optimizer + Scheduler
-    lr = config.get("lr", 1e-3)
-    weight_decay = config.get("weight_decay", 1e-4)
-    
     params = list(encoder.parameters()) + list(head.parameters())
-    optimizer = torch.optim.Adam(params, lr=lr, weight_decay=weight_decay)
-    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=20, gamma=0.7)
+    optimizer = get_optimizer(config, params)
+    scheduler = get_scheduler(config, optimizer)
 
     # Training Loop
     epochs = config.get("epochs", 200)
@@ -270,3 +339,172 @@ def run_training(rank, world_size, local_rank, config, config_path, device, use_
         logger.info(f"Best Test Acc: {best_acc:.2f}% at Epoch {best_epoch}")
         logger.info(f"[Converged] Epoch: {converged_epoch} | Mean OA: {best_window_mean:.2f}% | Time: {converged_time:.2f}s | Mem: {converged_mem:.1f}MB")
         logger.info("Training complete.")
+        
+        
+#=========
+#pretrain
+#=========
+def pretrain_one_epoch(encoder, decoder, dataloader, loss_fn, optimizer, scheduler, device, logger=None):
+    encoder.train()
+    decoder.train()
+    torch.cuda.reset_peak_memory_stats(device)
+    start_time = time.time()
+
+    total_loss = 0.0
+    total = 0
+
+    for batch in tqdm(dataloader, desc="Pretrain", leave=False):
+        inputs = batch.float().to(device)  # (B, N, 3)
+
+        optimizer.zero_grad()
+        x_vis, mask, neighborhoods, centers = encoder(inputs)
+        pred, target = decoder(x_vis, mask, neighborhoods, centers)
+
+        loss = loss_fn(pred, target)
+        loss.backward()
+        optimizer.step()
+
+        total_loss += loss.item() * inputs.size(0)
+        total += inputs.size(0)
+
+    scheduler.step()
+
+    end_time = time.time()
+    mem_used = torch.cuda.max_memory_allocated(device) / 1024**2  # MB
+    epoch_time = end_time - start_time
+    avg_loss = total_loss / total
+
+    if logger:
+        logger.info(f"[Pretrain] Loss: {avg_loss:.4f} | Time: {epoch_time:.1f}s | Mem: {mem_used:.1f} MB")
+
+    return avg_loss, epoch_time, mem_used
+
+def pretrain_evaluate(encoder, decoder, dataloader, loss_fn, device, logger=None):
+    encoder.eval()
+    decoder.eval()
+    torch.cuda.reset_peak_memory_stats(device)
+    start_time = time.time()
+
+    total_loss = 0.0
+    total = 0
+
+    with torch.no_grad():
+        for batch in tqdm(dataloader, desc="Val", leave=False):
+            inputs = batch.float().to(device)  # (B, N, 3)
+
+            x_vis, mask, neighborhoods, centers = encoder(inputs)
+            pred, target = decoder(x_vis, mask, neighborhoods, centers)
+
+            loss = loss_fn(pred, target)
+            total_loss += loss.item() * inputs.size(0)
+            total += inputs.size(0)
+
+    end_time = time.time()
+    mem_used = torch.cuda.max_memory_allocated(device) / 1024**2  # MB
+    epoch_time = end_time - start_time
+    avg_loss = total_loss / total
+
+    if logger:
+        logger.info(f"[Val] Loss: {avg_loss:.4f} | Time: {epoch_time:.1f}s | Mem: {mem_used:.1f} MB")
+
+    return avg_loss, epoch_time, mem_used
+
+
+def run_pretraining(rank, world_size, local_rank, config, config_path, device, use_ddp):
+    seed = config.get("seed", 42)
+    set_seed(seed)
+
+    is_resumed = "experiments" in str(config_path)
+    if rank == 0:
+        if is_resumed:
+            exp_dir = config_path.parent
+            logger = setup_logger(exp_dir / "log.txt")
+            logger.info(f"\n[Resume] Continuing pretraining")
+        else:
+            exp_time = datetime.now().strftime("%Y%m%d_%H%M%S")
+            exp_name = config_path.stem
+            exp_dir = Path("experiments") / f"{exp_name}_{exp_time}"
+            exp_dir.mkdir(parents=True, exist_ok=True)
+            shutil.copy(config_path, exp_dir / "config.yaml")
+            logger = setup_logger(exp_dir / "log.txt")
+            logger.info(f"Experiment: {exp_name}")
+    else:
+        logger = None
+        exp_dir = None
+
+    # Dataset
+    batch_size = config.get("batch_size", 128)
+    num_workers = config.get("num_workers", 4)
+    train_set = get_dataset(config, "train_dataset")
+    val_set = get_dataset(config, "val_dataset")
+
+    if use_ddp:
+        train_sampler = DistributedSampler(train_set, num_replicas=world_size, rank=rank, shuffle=True)
+        shuffle = False
+    else:
+        train_sampler = None
+        shuffle = True
+
+    train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=shuffle, sampler=train_sampler,
+                              num_workers=num_workers, drop_last=True)
+    val_loader = DataLoader(val_set, batch_size=batch_size, shuffle=False, num_workers=num_workers)
+
+    # Model
+    encoder = get_encoder(config).to(device)
+    decoder = get_head(config).to(device)  # Here head is decoder for pretraining
+
+    if use_ddp:
+        encoder = DistributedDataParallel(encoder, device_ids=[local_rank])
+        decoder = DistributedDataParallel(decoder, device_ids=[local_rank])
+
+    # Model Profile
+    if rank == 0:
+        num_points = getattr(train_set, "num_points", train_set[0].shape[0])
+        dummy_input = torch.rand(1, num_points, 3).float().to(device)
+        enc = encoder.module if isinstance(encoder, DistributedDataParallel) else encoder
+        dec = decoder.module if isinstance(decoder, DistributedDataParallel) else decoder
+        flops, params = get_model_profile(torch.nn.Sequential(enc, dec), dummy_input)
+        logger.info(f"Model Params: {params:,} | FLOPs: {flops / 1e6:.2f} MFLOPs")
+
+    # Loss
+    loss_fn = get_loss(config)
+
+    # Optimizer + Scheduler
+    params = list(encoder.parameters()) + list(decoder.parameters())
+    optimizer = get_optimizer(config, params)
+    scheduler = get_scheduler(config, optimizer)
+
+    # Training loop
+    epochs = config.get("epochs", 300)
+    best_loss = float("inf")
+    best_epoch = -1
+    epoch_times, epoch_mems = [], []
+
+    for epoch in range(epochs):
+        if train_sampler is not None:
+            train_sampler.set_epoch(epoch)
+        if rank == 0:
+            logger.info(f"Epoch {epoch+1}/{epochs}")
+
+        train_loss, train_time, train_mem = pretrain_one_epoch(
+            encoder, decoder, train_loader, loss_fn, optimizer, scheduler, device, logger if rank == 0 else None
+        )
+        val_loss, val_time, val_mem = pretrain_evaluate(
+            encoder, decoder, val_loader, loss_fn, device, logger if rank == 0 else None
+        )
+
+        if rank == 0:
+            epoch_times.append(train_time)
+            epoch_mems.append(train_mem)
+            if val_loss < best_loss:
+                best_loss = val_loss
+                best_epoch = epoch + 1
+                converged_time = sum(epoch_times)
+                converged_mem = max(epoch_mems)
+                save_checkpoint(encoder, decoder, optimizer, scheduler, epoch, best_loss, exp_dir, is_best=True)
+
+    if rank == 0:
+        save_checkpoint(encoder, decoder, optimizer, scheduler, epoch, best_loss, exp_dir, is_best=False)
+        logger.info(f"Best Val Loss: {best_loss:.4f} at Epoch {best_epoch}")
+        logger.info(f"[Converged] Epoch: {best_epoch} | Loss: {best_loss:.4f} | Time: {converged_time:.2f}s | Mem: {converged_mem:.1f}MB")
+        logger.info("Pretraining complete.")
