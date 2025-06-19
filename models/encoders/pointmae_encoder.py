@@ -73,7 +73,7 @@ class PointMAEEncoder(nn.Module):
             if m.bias is not None:
                 nn.init.constant_(m.bias, 0)
 
-    def _mask_center_rand(self, center, noaug=False):
+    def _mask_center_rand(self, center, noaug=False): # for each batch, randomly select num_mask centers
         B, G, _ = center.shape  # (B, G, 3)
         if noaug or self.mask_ratio == 0: # skip the mask
             return torch.zeros(B, G, dtype=torch.bool, device=center.device)
@@ -85,7 +85,7 @@ class PointMAEEncoder(nn.Module):
             mask[i, perm[:num_mask]] = True
         return mask # (B, G)-bool
 
-    def _mask_center_block(self, center, noaug=False):
+    def _mask_center_block(self, center, noaug=False): # for each batch, randomly select a ref center and other closest (num_mask-1) centers
         B, G, _ = center.shape
         if noaug or self.mask_ratio == 0:
             return torch.zeros(B, G, dtype=torch.bool, device=center.device)
