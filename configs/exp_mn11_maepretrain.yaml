@@ -46,11 +46,8 @@ optimizer:
 scheduler:
   name: coslr
   args:
-    epochs: 300
     initial_epochs: 10
     
 epochs: 300
 batch_size: 128
-lr: 0.001
-weight_decay: 0.005
 ddp: true
