@@ -10,7 +10,7 @@ from datasets.get_dataset import get_dataset
 from models.encoders.get_encoder import get_encoder
 from models.heads.get_head import get_head
 from models.losses.get_loss import get_loss
-from utils.train_utils import evaluate
+from utils.train_utils import evaluate, pretrain_evaluate
 from utils.checkpoint_utils import load_checkpoint
 import utils.pcd_utils as pcd_utils
 
@@ -41,7 +41,6 @@ def main(exp_name):
     assert checkpoint_path.exists(), f"Checkpoint not found at {checkpoint_path}"
 
     config = load_config(config_path)
-    is_pretrain = config.get("pretrain", False)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     # Load dataset
@@ -62,9 +61,15 @@ def main(exp_name):
     load_checkpoint(encoder, head, checkpoint_path, device)
 
     # Evaluate
-    _, _, _, _, _, _, test_cm = evaluate(
-        model, test_loader, loss_fn, device, None, rotation_vote, num_votes
-    )
+    is_pretrain = config.get("pretrain", False)
+    if is_pretrain:
+        _ = pretrain_evaluate(
+            model, test_loader, loss_fn, device, None, rotation_vote, num_votes
+        )
+    else:
+        _, _, _, _, _, _, test_cm = evaluate(
+            model, test_loader, loss_fn, device, None, rotation_vote, num_votes
+        )
 
     # Plot confusion matrix
     if args.confusion_matrix:
@@ -76,5 +81,34 @@ def main(exp_name):
         plt.savefig(exp_dir / "confusion_matrix.png")
         plt.show()
 
+if args.viz_reconstruction:
+        from utils import pcd_utils
+        inv_class_map = {v: k for k, v in dataset.class_map.items()}
+        shown = set()
+
+        encoder.eval()
+        with torch.no_grad():
+            for pc, label in dataloader:
+                pc = pc.float().to(device)
+                label = label.item()
+
+                if label in shown:
+                    continue
+
+                x_vis, mask, neighborhood, center = encoder(pc, noaug=True)
+                rec = encoder.decoder(x_vis, mask, neighborhood, center)
+
+                vis_pts = neighborhood[0][~mask[0]].reshape(-1, 3).cpu().numpy()
+                rec_pts = rec[0].reshape(-1, 3).cpu().numpy()
+                full_pts = neighborhood[0].reshape(-1, 3).cpu().numpy()
+                class_name = inv_class_map[label]
+
+                print(f"[{class_name}]")
+                pcd_utils.viz_pcd([vis_pts, rec_pts, full_pts], titles=["Visible", "Reconstructed", "Ground Truth"])
+
+                shown.add(label)
+                if len(shown) >= 5:
+                    break
+                    
 if __name__ == "__main__":
     main()
