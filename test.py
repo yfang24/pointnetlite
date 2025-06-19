@@ -12,6 +12,7 @@ from models.heads.get_head import get_head
 from models.losses.get_loss import get_loss
 from utils.train_utils import evaluate
 from utils.checkpoint_utils import load_checkpoint
+import utils.pcd_utils as pcd_utils
 
 def main(exp_name):    
     parser = argparse.ArgumentParser()
@@ -25,6 +26,9 @@ def main(exp_name):
         "-cm", "--confusion_matrix", action="store_true",
         help="Whether to show the confusion matrix"
     )
+    parser.add_argument(
+        "-viz", "--viz_reconstruction", action="store_true", 
+        help="Visualize reconstructions in pretraining")
 
     args = parser.parse_args()
 
@@ -57,7 +61,7 @@ def main(exp_name):
 
     # Evaluate
     _, _, _, _, _, _, test_cm = evaluate(
-        encoder, head, test_loader, loss_fn, device, None, rotation_vote, num_votes
+        model, test_loader, loss_fn, device, None, rotation_vote, num_votes
     )
 
     # Plot confusion matrix
