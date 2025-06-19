@@ -14,9 +14,6 @@ LOSS_REGISTRY = {
 }
 
 def get_loss(config):
-    """
-    Given full config dict, return a callable loss_fn(pred, target, **kwargs)
-    """
     loss_config = config.get("loss", "cross_entropy")
 
     # If just a string is given
