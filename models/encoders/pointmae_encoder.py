@@ -118,4 +118,6 @@ class PointMAEEncoder(nn.Module):
         x_vis = self.blocks(x_vis, pos)                          # (B, G_visible, trans_dim)
         x_vis = self.norm(x_vis)
 
+        if noaug:
+            return x_vis
         return x_vis, mask, neighborhood, center
