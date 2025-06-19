@@ -38,6 +38,8 @@ class PointMAEClsHead(nn.Module):
                 nn.init.constant_(m.bias, 0)
                 
     def forward(self, x): # (B, G, trans_dim)
+        B = x.size(0)
+        
         cls_tok = self.cls_token.expand(B, -1, -1)  # (B, 1, trans_dim)
         cls_pos = self.cls_pos.expand(B, -1, -1)    # (B, 1, trans_dim)
 
@@ -49,8 +51,8 @@ class PointMAEClsHead(nn.Module):
         x = x + pos
 
         # Simple global + token fusion
-        cls_feature = x[:, 0]                       # (B, trans_dim)
-        global_feature = x[:, 1:].max(dim=1)[0]     # (B, trans_dim)
+        cls_feature = x[:, 0]                       # (B, trans_dim); cls_token (B, trans_dim) + its pos
+        global_feature = x[:, 1:].max(dim=1)[0]     # (B, trans_dim); max over groups(input group token x (B, G, trans_dim) + their pos (zeros))
         feat = torch.cat([cls_feature, global_feature], dim=1)  # (B, 2trans_dim)
 
         return self.cls_head(feat)                  # (B, cls_dim)
