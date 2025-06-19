@@ -17,9 +17,7 @@ def get_loss(config):
     """
     Given full config dict, return a callable loss_fn(pred, target, **kwargs)
     """
-    loss_config = config.get("loss", None)
-    if loss_config is None:
-        raise ValueError("Missing 'loss' in config")
+    loss_config = config.get("loss", "cross_entropy")
 
     # If just a string is given
     if isinstance(loss_config, str):
