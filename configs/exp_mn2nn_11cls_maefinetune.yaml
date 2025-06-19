@@ -44,7 +44,6 @@ optimizer:
 scheduler:
   name: coslr
   args:
-    epochs: 300
     initial_epochs: 10
     
 epochs: 300
