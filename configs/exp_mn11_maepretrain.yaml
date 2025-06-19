@@ -51,3 +51,4 @@ scheduler:
 epochs: 300
 batch_size: 128
 ddp: true
+pretrain: true
