@@ -19,8 +19,9 @@ class STN3d(nn.Module):
         self.bn4 = nn.BatchNorm1d(512)
         self.bn5 = nn.BatchNorm1d(256)
 
-    def forward(self, x):
+    def forward(self, x): # (B, N, 3)
         B = x.size(0)
+        x = x.permute(0, 2, 1)
         x = F.relu(self.bn1(self.conv1(x)))
         x = F.relu(self.bn2(self.conv2(x)))
         x = F.relu(self.bn3(self.conv3(x)))
@@ -55,6 +56,7 @@ class STNkd(nn.Module):
 
     def forward(self, x):
         B = x.size(0)
+        x = x.permute(0, 2, 1)
         x = F.relu(self.bn1(self.conv1(x)))
         x = F.relu(self.bn2(self.conv2(x)))
         x = F.relu(self.bn3(self.conv3(x)))
@@ -91,8 +93,9 @@ class PointNetEncoder(nn.Module):
         if feature_transform:
             self.fstn = STNkd(k=64)
 
-    def forward(self, x):  # (B, D, N)
-        B, D, N = x.size()
+    def forward(self, x):
+        B, N, D = x.size()
+        x = x.permute(0, 2, 1)
         trans = self.stn(x)
         x = torch.bmm(trans, x)
 
