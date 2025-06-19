@@ -73,7 +73,8 @@ class PointMAEEncoder(nn.Module):
             if m.bias is not None:
                 nn.init.constant_(m.bias, 0)
 
-    def _mask_center_rand(self, center, noaug=False): # for each batch, randomly select num_mask centers
+    # for each batch, randomly select num_mask centers
+    def _mask_center_rand(self, center, noaug=False):
         B, G, _ = center.shape  # (B, G, 3)
         if noaug or self.mask_ratio == 0: # skip the mask
             return torch.zeros(B, G, dtype=torch.bool, device=center.device)
@@ -85,7 +86,8 @@ class PointMAEEncoder(nn.Module):
             mask[i, perm[:num_mask]] = True
         return mask # (B, G)-bool
 
-    def _mask_center_block(self, center, noaug=False): # for each batch, randomly select a ref center and other closest (num_mask-1) centers
+    # for each batch, randomly select a ref center and other closest (num_mask-1) centers
+    def _mask_center_block(self, center, noaug=False):
         B, G, _ = center.shape
         if noaug or self.mask_ratio == 0:
             return torch.zeros(B, G, dtype=torch.bool, device=center.device)
@@ -108,9 +110,9 @@ class PointMAEEncoder(nn.Module):
         else:
             mask = self._mask_center_block(center, noaug)
 
-        group_tokens = self.encoder(neighborhood)                # (B, G, C)
-        B, G, C = group_tokens.shape
-        x_vis = group_tokens[~mask].reshape(B, -1, C)            # (B, G_visible, C)
+        group_tokens = self.encoder(neighborhood)                # (B, G, D)
+        B, G, D = group_tokens.shape
+        x_vis = group_tokens[~mask].reshape(B, -1, D)            # (B, G_visible, D)
 
         pos = self.pos_embed(center[~mask].reshape(B, -1, 3))    # (B, G_visible, trans_dim)
         x_vis = self.blocks(x_vis, pos)                          # (B, G_visible, trans_dim)
