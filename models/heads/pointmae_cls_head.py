@@ -37,27 +37,20 @@ class PointMAEClsHead(nn.Module):
             if m.bias is not None:
                 nn.init.constant_(m.bias, 0)
                 
-    def forward(self, x):
-        """
-        x: (B, G, C) - encoder features over G groups
-        Returns:
-            logits: (B, cls_dim)
-        """
-        B, G, C = x.shape
-
-        cls_tok = self.cls_token.expand(B, -1, -1)  # (B, 1, C)
-        cls_pos = self.cls_pos.expand(B, -1, -1)    # (B, 1, C)
+    def forward(self, x): # (B, G, trans_dim)
+        cls_tok = self.cls_token.expand(B, -1, -1)  # (B, 1, trans_dim)
+        cls_pos = self.cls_pos.expand(B, -1, -1)    # (B, 1, trans_dim)
 
         # concatenate cls token to features
-        x = torch.cat([cls_tok, x], dim=1)          # (B, G+1, C)
+        x = torch.cat([cls_tok, x], dim=1)          # (B, G+1, trans_dim)
         pos = torch.cat([cls_pos, torch.zeros_like(x[:, 1:])], dim=1)  # dummy pos for now
 
         # Apply positional encoding if needed (optional)
         x = x + pos
 
         # Simple global + token fusion
-        cls_feature = x[:, 0]                       # (B, C)
-        global_feature = x[:, 1:].max(dim=1)[0]     # (B, C)
-        feat = torch.cat([cls_feature, global_feature], dim=1)  # (B, 2C)
+        cls_feature = x[:, 0]                       # (B, trans_dim)
+        global_feature = x[:, 1:].max(dim=1)[0]     # (B, trans_dim)
+        feat = torch.cat([cls_feature, global_feature], dim=1)  # (B, 2trans_dim)
 
         return self.cls_head(feat)                  # (B, cls_dim)
