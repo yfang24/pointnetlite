@@ -5,7 +5,7 @@ from pathlib import Path
 import torch.multiprocessing as mp
 import torch.distributed as dist
 
-from utils.train_utils import run_training
+from utils.train_utils import run_training, run_pretraining
 from configs.load_config import load_config
 
 def main():
@@ -25,6 +25,8 @@ def main():
     
     config = load_config(config_path)
     use_ddp = config.get("ddp", False)
+    is_pretrain = config.get("pretrain", False)
+    run_func = run_pretraining if is_pretrain else run_training
 
     if use_ddp:
         if "RANK" not in os.environ and "SLURM_PROCID" in os.environ:
@@ -44,14 +46,14 @@ def main():
         device = torch.device(f"cuda:{local_rank}")
 
         try:
-            run_training(rank, world_size, local_rank, config, config_path, device, use_ddp)
+            run_func(rank, world_size, local_rank, config, config_path, device, use_ddp)
         finally:
             if dist.is_initialized():
                 dist.destroy_process_group()
     else:
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         
-        run_training(rank=0, world_size=1, local_rank=0, config=config, config_path=config_path, device=device, use_ddp=use_ddp)
+        run_func(rank=0, world_size=1, local_rank=0, config=config, config_path=config_path, device=device, use_ddp=use_ddp)
 
 if __name__ == "__main__":
     main()
