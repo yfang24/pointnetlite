@@ -470,6 +470,7 @@ def run_pretraining(rank, world_size, local_rank, config, config_path, device, u
     for epoch in range(epochs):
         if train_sampler is not None:
             train_sampler.set_epoch(epoch)
+            
         if rank == 0:
             logger.info(f"Epoch {epoch+1}/{epochs}")
 
