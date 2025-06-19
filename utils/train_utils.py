@@ -259,29 +259,26 @@ def run_training(rank, world_size, local_rank, config, config_path, device, use_
     # Model
     encoder = get_encoder(config).to(device)
     head = get_head(config).to(device)
+    model = torch.nn.Sequential(encoder, head).to(device)
     
     if use_ddp:
-        encoder = DistributedDataParallel(encoder, device_ids=[local_rank])
-        head = DistributedDataParallel(head, device_ids=[local_rank])
+        model = DistributedDataParallel(model, device_ids=[local_rank])
         
     # Model Profile
     if rank == 0:
         num_points = getattr(train_set, "num_points", train_set[0][0].shape[0])
         dummy_input = torch.rand(1, 3, num_points).float().to(device)
-        
-        profile_encoder = encoder.module if isinstance(encoder, DistributedDataParallel) else encoder
-        profile_head = head.module if isinstance(head, DistributedDataParallel) else head
-        
-        flops, params = get_model_profile(torch.nn.Sequential(profile_encoder, profile_head), dummy_input)
-        # flops, params = get_model_profile(torch.nn.Sequential(encoder, head), dummy_input)
+
+        profiled_model = model.module if isinstance(model, DistributedDataParallel) else model
+        flops, params = get_model_profile(profiled_model, dummy_input)    
         logger.info(f"Model Params: {params:,} | FLOPs: {flops / 1e6:.2f} MFLOPs")      
 
     # Loss
     loss_fn = get_loss(config)
     
     # Optimizer + Scheduler
-    params = list(encoder.named_parameters()) + list(head.named_parameters())
-    optimizer = get_optimizer(config, params)
+    named_params = list(model.named_parameters())
+    optimizer = get_optimizer(config, named_params)
     scheduler = get_scheduler(config, optimizer)
 
     # Training Loop
@@ -352,7 +349,7 @@ def pretrain_one_epoch(encoder, decoder, dataloader, loss_fn, optimizer, schedul
     total = 0
 
     for batch in tqdm(dataloader, desc="Pretrain", leave=False):
-        inputs = batch.float().to(device)  # (B, N, 3)
+        inputs = batch[0].float().to(device)  # (B, N, 3)
 
         optimizer.zero_grad()
         pred, target = decoder(encoder(inputs))
@@ -387,7 +384,7 @@ def pretrain_evaluate(encoder, decoder, dataloader, loss_fn, device, logger=None
 
     with torch.no_grad():
         for batch in tqdm(dataloader, desc="Val", leave=False):
-            inputs = batch.float().to(device)  # (B, N, 3)
+            inputs = batch[0].float().to(device)  # (B, N, 3)
 
             pred, target = decoder(encoder(inputs))
 
