@@ -27,7 +27,15 @@ val_dataset:
       args:
         apply_scale: true
         apply_rotation: true # y-axis random rotation
-  
+
+test_dataset: 
+  name: scanobjectnn
+  args:
+    root_dir: main_split_nobg
+    class_map: scanobjectnn11
+    split: test
+    normalize: true
+
 encoder: 
   name: pointmae_encoder
   args: {}
