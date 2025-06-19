@@ -41,6 +41,7 @@ def main(exp_name):
     assert checkpoint_path.exists(), f"Checkpoint not found at {checkpoint_path}"
 
     config = load_config(config_path)
+    is_pretrain = config.get("pretrain", False)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     # Load dataset
@@ -55,6 +56,7 @@ def main(exp_name):
     # Load model
     encoder = get_encoder(config).to(device)
     head = get_head(config).to(device)
+    model = torch.nn.Sequential(encoder, head).to(device)
     loss_fn = get_loss(config)
 
     load_checkpoint(encoder, head, checkpoint_path, device)
