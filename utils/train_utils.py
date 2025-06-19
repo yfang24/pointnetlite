@@ -98,9 +98,8 @@ def get_scheduler(config, optimizer):
 #=====================
 #train
 #=====================
-def train_one_epoch(encoder, head, dataloader, loss_fn, optimizer, scheduler, device, logger=None):
-    encoder.train()
-    head.train()
+def train_one_epoch(model, dataloader, loss_fn, optimizer, scheduler, device, logger=None):
+    model.train()
     torch.cuda.reset_peak_memory_stats(device)
     start_time = time.time()
     
@@ -112,8 +111,7 @@ def train_one_epoch(encoder, head, dataloader, loss_fn, optimizer, scheduler, de
         inputs, targets = batch[0].float().to(device), batch[1].long().to(device)
 
         optimizer.zero_grad()
-        embeddings = encoder(inputs)
-        outputs = head(embeddings)
+        outputs = model(inputs)
         loss = loss_fn(outputs, targets)
         loss.backward()
         optimizer.step()
@@ -136,9 +134,8 @@ def train_one_epoch(encoder, head, dataloader, loss_fn, optimizer, scheduler, de
     return avg_loss, acc, epoch_time, mem_used
 
 
-def evaluate(encoder, head, dataloader, loss_fn, device, logger=None, rotation_vote=False, num_votes=None):
-    encoder.eval()
-    head.eval()
+def evaluate(model, dataloader, loss_fn, device, logger=None, rotation_vote=False, num_votes=None):
+    model.eval()
     torch.cuda.reset_peak_memory_stats(device)
     start_time = time.time()
     
@@ -153,8 +150,7 @@ def evaluate(encoder, head, dataloader, loss_fn, device, logger=None, rotation_v
         for batch in tqdm(dataloader, desc="Eval", leave=False):
             inputs, targets = batch[0].float().to(device), batch[1].long().to(device)
 
-            embeddings = encoder(inputs)
-            outputs = head(embeddings)
+            outputs = model(inputs)
             loss = loss_fn(outputs, targets)
 
             total_loss += loss.item() * inputs.size(0)
@@ -301,10 +297,10 @@ def run_training(rank, world_size, local_rank, config, config_path, device, use_
             logger.info(f"Epoch {epoch+1}/{epochs}")
 
         train_loss, train_acc, train_time, train_mem = train_one_epoch(
-            encoder, head, train_loader, loss_fn, optimizer, scheduler, device, logger if rank == 0 else None
+            model, train_loader, loss_fn, optimizer, scheduler, device, logger if rank == 0 else None
         )
         test_loss, test_acc, test_ma, test_time, test_mem, _ = evaluate(
-            encoder, head, test_loader, loss_fn, device, logger if rank == 0 else None, rotation_vote, num_votes
+            model, test_loader, loss_fn, device, logger if rank == 0 else None, rotation_vote, num_votes
         )
 
         if rank == 0:
@@ -339,9 +335,8 @@ def run_training(rank, world_size, local_rank, config, config_path, device, use_
 #=====================
 #pretrain
 #=====================
-def pretrain_one_epoch(encoder, decoder, dataloader, loss_fn, optimizer, scheduler, device, logger=None):
-    encoder.train()
-    decoder.train()
+def pretrain_one_epoch(model, dataloader, loss_fn, optimizer, scheduler, device, logger=None):
+    model.train()
     torch.cuda.reset_peak_memory_stats(device)
     start_time = time.time()
 
@@ -352,7 +347,7 @@ def pretrain_one_epoch(encoder, decoder, dataloader, loss_fn, optimizer, schedul
         inputs = batch[0].float().to(device)  # (B, N, 3)
 
         optimizer.zero_grad()
-        pred, target = decoder(encoder(inputs))
+        pred, target = model(inputs)
 
         loss = loss_fn(pred, target)
         loss.backward()
@@ -373,9 +368,8 @@ def pretrain_one_epoch(encoder, decoder, dataloader, loss_fn, optimizer, schedul
 
     return avg_loss, epoch_time, mem_used
 
-def pretrain_evaluate(encoder, decoder, dataloader, loss_fn, device, logger=None):
-    encoder.eval()
-    decoder.eval()
+def pretrain_evaluate(model, dataloader, loss_fn, device, logger=None):
+    model.eval()
     torch.cuda.reset_peak_memory_stats(device)
     start_time = time.time()
 
@@ -386,7 +380,7 @@ def pretrain_evaluate(encoder, decoder, dataloader, loss_fn, device, logger=None
         for batch in tqdm(dataloader, desc="Val", leave=False):
             inputs = batch[0].float().to(device)  # (B, N, 3)
 
-            pred, target = decoder(encoder(inputs))
+            pred, target = model(inputs)
 
             loss = loss_fn(pred, target)
             total_loss += loss.item() * inputs.size(0)
@@ -445,26 +439,26 @@ def run_pretraining(rank, world_size, local_rank, config, config_path, device, u
     # Model
     encoder = get_encoder(config).to(device)
     decoder = get_head(config).to(device)  # Here head is decoder for pretraining
-
+    model = torch.nn.Sequential(encoder, head).to(device)
+    
     if use_ddp:
-        encoder = DistributedDataParallel(encoder, device_ids=[local_rank])
-        decoder = DistributedDataParallel(decoder, device_ids=[local_rank])
+        model = DistributedDataParallel(model, device_ids=[local_rank])
 
     # Model Profile
     if rank == 0:
         num_points = getattr(train_set, "num_points", train_set[0].shape[0])
         dummy_input = torch.rand(1, num_points, 3).float().to(device)
-        enc = encoder.module if isinstance(encoder, DistributedDataParallel) else encoder
-        dec = decoder.module if isinstance(decoder, DistributedDataParallel) else decoder
-        flops, params = get_model_profile(torch.nn.Sequential(enc, dec), dummy_input)
+
+        profiled_model = model.module if isinstance(model, DistributedDataParallel) else model
+        flops, params = get_model_profile(profiled_model, dummy_input)
         logger.info(f"Model Params: {params:,} | FLOPs: {flops / 1e6:.2f} MFLOPs")
 
     # Loss
     loss_fn = get_loss(config)
 
     # Optimizer + Scheduler
-    params = list(encoder.parameters()) + list(decoder.parameters())
-    optimizer = get_optimizer(config, params)
+    named_params = list(model.named_parameters())
+    optimizer = get_optimizer(config, named_params)
     scheduler = get_scheduler(config, optimizer)
 
     # Training loop
@@ -480,10 +474,10 @@ def run_pretraining(rank, world_size, local_rank, config, config_path, device, u
             logger.info(f"Epoch {epoch+1}/{epochs}")
 
         train_loss, train_time, train_mem = pretrain_one_epoch(
-            encoder, decoder, train_loader, loss_fn, optimizer, scheduler, device, logger if rank == 0 else None
+            model, train_loader, loss_fn, optimizer, scheduler, device, logger if rank == 0 else None
         )
         val_loss, val_time, val_mem = pretrain_evaluate(
-            encoder, decoder, val_loader, loss_fn, device, logger if rank == 0 else None
+            model, val_loader, loss_fn, device, logger if rank == 0 else None
         )
 
         if rank == 0:
