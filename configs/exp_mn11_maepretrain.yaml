@@ -13,7 +13,7 @@ train_dataset:
         apply_scale: true
         apply_rotation: true # y-axis random rotation
 
-test_dataset: 
+val_dataset: 
   name: modelnet
   args:
     root_dir: modelnet40_manually_aligned
