@@ -13,6 +13,7 @@ class PointNetLiteEncoder(nn.Module):
         self.bn3 = nn.BatchNorm1d(1024)
 
     def forward(self, x):
+        x = x.permute(0, 2, 1)
         x = F.relu(self.bn1(self.conv1(x)))
         x = F.relu(self.bn2(self.conv2(x)))
         x = self.bn3(self.conv3(x))
