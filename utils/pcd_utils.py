@@ -50,7 +50,7 @@ def group_points(points, idx):
     grouped = points.reshape(B * N, C)[idx, :].view(B, G, K, C)
     return grouped
 
-def pointmae_group(points, num_group, group_size):
+def sample_and_group(points, num_group, group_size):
     '''
     points: (B, N, 3)
     returns:
