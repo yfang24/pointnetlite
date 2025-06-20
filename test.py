@@ -94,15 +94,24 @@ def main(exp_name):
         with torch.no_grad():
             for pc, label in dataloader:
                 pc = pc.float().to(device)
+                pc = pc.unsqueeze(0).float().to(device)  # (1, N, 3)
+                full_pts = pc[0].cpu().numpy()           # (N, 3)
+                
                 label = label.item()
-
                 if label in shown:
                     continue
 
                 x_vis, mask, neighborhood, center = encoder(pc, noaug=False)
                 rec, gt = head(x_vis, mask, neighborhood, center)
 
-                vis_pts = neighborhood[0][~mask[0]].reshape(-1, 3).cpu().numpy()
+                vis_pts = neighborhood[0][~mask[0]].reshape(-1, 3).cpu().numpy() # (G_visible * S, 3)
+
+                visible_groups = neighborhood[0][~mask[0]].cpu()                  # (G_visible, S, 3)
+                reconstructed_groups = rec.reshape(-1, neighborhood.shape[2], 3).cpu()  # (G_masked, S, 3)
+        
+                full_reconstructed = torch.cat([visible_groups, reconstructed_groups], dim=0)  # (G, S, 3)
+                rec_pts = full_reconstructed.reshape(-1, 3).numpy()                            # (G * S, 3)
+                
                 rec_pts = rec[0].reshape(-1, 3).cpu().numpy()
                 gt_pts = gt[0].reshape(-1, 3).cpu().numpy()
                 viz_pcds.extend([vis_pts, rec_pts, full_pts])
@@ -110,12 +119,10 @@ def main(exp_name):
                 class_name = inv_class_map[label]
                 viz_class_names.append(class_name)
                 
-                print(f"[{class_name}]")
-                pcd_utils.viz_pcd([vis_pts, rec_pts, full_pts], titles=["Visible", "Reconstructed", "Ground Truth"])
-
                 shown.add(label)
                 if len(shown) >= num_viz:
                     break
+                    
         print(visualizing one sample of viz_class_names(list of classes), in order of Visible", "Reconstructed", "Ground Truth of one sample input per row)
                     
 if __name__ == "__main__":
