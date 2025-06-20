@@ -82,8 +82,7 @@ def main(exp_name):
         plt.show()
 
 if args.viz_reconstruction:
-        from utils import pcd_utils
-        inv_class_map = {v: k for k, v in dataset.class_map.items()}
+        inv_class_map = {v: k for k, v in test_set.class_map.items()}
         shown = set()
 
         encoder.eval()
@@ -96,7 +95,7 @@ if args.viz_reconstruction:
                     continue
 
                 x_vis, mask, neighborhood, center = encoder(pc, noaug=True)
-                rec = encoder.decoder(x_vis, mask, neighborhood, center)
+                rec, gt = head(x_vis, mask, neighborhood, center)
 
                 vis_pts = neighborhood[0][~mask[0]].reshape(-1, 3).cpu().numpy()
                 rec_pts = rec[0].reshape(-1, 3).cpu().numpy()
