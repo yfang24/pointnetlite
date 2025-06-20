@@ -13,7 +13,7 @@ from models.heads.get_head import get_head
 from models.losses.get_loss import get_loss
 from utils.train_utils import evaluate, pretrain_evaluate
 from utils.checkpoint_utils import load_checkpoint
-import utils.pcd_utils as pcd_utils
+from utils.pcd_utils import init_pcd, viz_pcd
 
 def main(exp_name):    
     parser = argparse.ArgumentParser()
@@ -131,7 +131,7 @@ def main(exp_name):
                     break
                     
         print(f"\n[Visualization Summary]")
-        print(f"- Each column is a single object from classes: {list(shown)}")
+        print(f"- Each column is a single object from classes: {viz_class_names}")
         print(f"- Row 1: Ground truth (visible: blue, masked: gray)")
         print(f"- Row 2: Reconstructed output (visible: blue, reconstructed: red)\n")
         viz_pcd(viz_pcds, spacing=2, rows=2)
