@@ -102,7 +102,7 @@ class PointMAEEncoder(nn.Module):
             mask[i, sorted_idx[:num_mask]] = True
         return mask  # (B, G)
    
-    def forward(self, point_cloud, noaug=False): # (B, N, 3); noaug: False for pretrain, True for finetune
+    def forward(self, point_cloud, noaug=False): # (B, N, 3); noaug: whether do masking--False for pretrain, True for finetune
         neighborhood, center = pointmae_group(point_cloud, self.num_group, self.group_size)  # (B, G, S, 3), (B, G, 3)
 
         if self.mask_type == 'rand':
