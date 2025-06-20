@@ -1,6 +1,7 @@
 import argparse
 from pathlib import Path
 import torch
+import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.metrics import ConfusionMatrixDisplay
 from torch.utils.data import DataLoader
@@ -27,8 +28,10 @@ def main(exp_name):
         help="Whether to show the confusion matrix"
     )
     parser.add_argument(
-        "-viz", "--viz_reconstruction", action="store_true", 
-        help="Visualize reconstructions in pretraining")
+    "-viz", "--viz_reconstruction",
+    nargs="?", const=5, default=None, type=int,
+    help="Visualize reconstructions in pretraining; optionally pass number of examples (default=5)"
+    )
 
     args = parser.parse_args()
 
@@ -91,30 +94,34 @@ def main(exp_name):
 
         encoder.eval()
         head.eval()
+        
         with torch.no_grad():
-            for pc, label in dataloader:
-                pc = pc.float().to(device)
-                pc = pc.unsqueeze(0).float().to(device)  # (1, N, 3)
-                full_pts = pc[0].cpu().numpy()           # (N, 3)
-                
+            for pc, label in test_set:
+                pc = pc.unsqueeze(0).float().to(device)  # (1, N, 3)               
                 label = label.item()
                 if label in shown:
                     continue
 
                 x_vis, mask, neighborhood, center = encoder(pc, noaug=False)
                 rec, gt = head(x_vis, mask, neighborhood, center)
-
-                vis_pts = neighborhood[0][~mask[0]].reshape(-1, 3).cpu().numpy() # (G_visible * S, 3)
-
-                visible_groups = neighborhood[0][~mask[0]].cpu()                  # (G_visible, S, 3)
-                reconstructed_groups = rec.reshape(-1, neighborhood.shape[2], 3).cpu()  # (G_masked, S, 3)
-        
-                full_reconstructed = torch.cat([visible_groups, reconstructed_groups], dim=0)  # (G, S, 3)
-                rec_pts = full_reconstructed.reshape(-1, 3).numpy()                            # (G * S, 3)
                 
-                rec_pts = rec[0].reshape(-1, 3).cpu().numpy()
-                gt_pts = gt[0].reshape(-1, 3).cpu().numpy()
-                viz_pcds.extend([vis_pts, rec_pts, full_pts])
+                vis_pts = neighborhood[0][~mask[0]].reshape(-1, 3).cpu().numpy() # (G_visible * S, 3)
+                rec_pts = rec.reshape(-1, 3).cpu().numpy() # # (G_masked * S, 3)
+
+                gt_pts = neighborhood[0].reshape(-1, 3).cpu().numpy() # (N, 3)
+                gt_colors  = np.tile([0, 153, 255], (gt_pts.shape[0], 1)) # blue = visible
+                masked_indices = np.arange(gt_pts.shape[0])[mask[0].flatten().repeat(neighborhood[0].shape[1])]
+                gt_colors[masked_indices] = [128, 128, 128] # grey = masked
+                pcd_gt = init_pcd(gt_pts, colors=gt_colors)
+
+                rc_pts = np.concatenate([rec_pts, vis_pts], axis=0)
+                rc_colors = np.concatenate([
+                    np.tile([[255, 0, 0]], (rec_pts.shape[0], 1)),    # red = reconstructed
+                    np.tile([[0, 153, 255]], (vis_pts.shape[0], 1))   # blue = visible
+                ])
+                pcd_rc = init_pcd(rc_pts, colors=rc_colors)
+
+                viz_pcds.extend([pcd_gt, pcd_rc])
                 
                 class_name = inv_class_map[label]
                 viz_class_names.append(class_name)
@@ -123,7 +130,11 @@ def main(exp_name):
                 if len(shown) >= num_viz:
                     break
                     
-        print(visualizing one sample of viz_class_names(list of classes), in order of Visible", "Reconstructed", "Ground Truth of one sample input per row)
-                    
+        print(f"\n[Visualization Summary]")
+        print(f"- Each column is a single object from classes: {list(shown)}")
+        print(f"- Row 1: Ground truth (visible: blue, masked: gray)")
+        print(f"- Row 2: Reconstructed output (visible: blue, reconstructed: red)\n")
+        viz_pcd(viz_pcds, spacing=2, rows=2)
+        
 if __name__ == "__main__":
     main()
