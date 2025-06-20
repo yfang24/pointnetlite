@@ -1,10 +1,10 @@
 import argparse
 from pathlib import Path
 import torch
+from torch.utils.data import DataLoader
 import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.metrics import ConfusionMatrixDisplay
-from torch.utils.data import DataLoader
 
 from configs.load_config import load_config
 from datasets.get_dataset import get_dataset
