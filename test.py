@@ -81,34 +81,42 @@ def main(exp_name):
         plt.savefig(exp_dir / "confusion_matrix.png")
         plt.show()
 
+    # Show visible, reconstructed, ground truth pcs
     if args.viz_reconstruction:
-            inv_class_map = {v: k for k, v in test_set.class_map.items()}
-            shown = set()
-            num_viz = 5
-    
-            encoder.eval()
-            with torch.no_grad():
-                for pc, label in dataloader:
-                    pc = pc.float().to(device)
-                    label = label.item()
-    
-                    if label in shown:
-                        continue
-    
-                    x_vis, mask, neighborhood, center = encoder(pc, noaug=True)
-                    rec, gt = head(x_vis, mask, neighborhood, center)
-    
-                    vis_pts = neighborhood[0][~mask[0]].reshape(-1, 3).cpu().numpy()
-                    rec_pts = rec[0].reshape(-1, 3).cpu().numpy()
-                    full_pts = neighborhood[0].reshape(-1, 3).cpu().numpy()
-                    class_name = inv_class_map[label]
-    
-                    print(f"[{class_name}]")
-                    pcd_utils.viz_pcd([vis_pts, rec_pts, full_pts], titles=["Visible", "Reconstructed", "Ground Truth"])
-    
-                    shown.add(label)
-                    if len(shown) >= num_viz:
-                        break
+        inv_class_map = {v: k for k, v in test_set.class_map.items()}
+        shown = set()            
+        num_viz = 5
+        viz_pcds = []
+        viz_class_names = []
+
+        encoder.eval()
+        head.eval()
+        with torch.no_grad():
+            for pc, label in dataloader:
+                pc = pc.float().to(device)
+                label = label.item()
+
+                if label in shown:
+                    continue
+
+                x_vis, mask, neighborhood, center = encoder(pc, noaug=False)
+                rec, gt = head(x_vis, mask, neighborhood, center)
+
+                vis_pts = neighborhood[0][~mask[0]].reshape(-1, 3).cpu().numpy()
+                rec_pts = rec[0].reshape(-1, 3).cpu().numpy()
+                gt_pts = gt[0].reshape(-1, 3).cpu().numpy()
+                viz_pcds.extend([vis_pts, rec_pts, full_pts])
+                
+                class_name = inv_class_map[label]
+                viz_class_names.append(class_name)
+                
+                print(f"[{class_name}]")
+                pcd_utils.viz_pcd([vis_pts, rec_pts, full_pts], titles=["Visible", "Reconstructed", "Ground Truth"])
+
+                shown.add(label)
+                if len(shown) >= num_viz:
+                    break
+        print(visualizing one sample of viz_class_names(list of classes), in order of Visible", "Reconstructed", "Ground Truth of one sample input per row)
                     
 if __name__ == "__main__":
     main()
