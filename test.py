@@ -81,33 +81,34 @@ def main(exp_name):
         plt.savefig(exp_dir / "confusion_matrix.png")
         plt.show()
 
-if args.viz_reconstruction:
-        inv_class_map = {v: k for k, v in test_set.class_map.items()}
-        shown = set()
-
-        encoder.eval()
-        with torch.no_grad():
-            for pc, label in dataloader:
-                pc = pc.float().to(device)
-                label = label.item()
-
-                if label in shown:
-                    continue
-
-                x_vis, mask, neighborhood, center = encoder(pc, noaug=True)
-                rec, gt = head(x_vis, mask, neighborhood, center)
-
-                vis_pts = neighborhood[0][~mask[0]].reshape(-1, 3).cpu().numpy()
-                rec_pts = rec[0].reshape(-1, 3).cpu().numpy()
-                full_pts = neighborhood[0].reshape(-1, 3).cpu().numpy()
-                class_name = inv_class_map[label]
-
-                print(f"[{class_name}]")
-                pcd_utils.viz_pcd([vis_pts, rec_pts, full_pts], titles=["Visible", "Reconstructed", "Ground Truth"])
-
-                shown.add(label)
-                if len(shown) >= 5:
-                    break
+    if args.viz_reconstruction:
+            inv_class_map = {v: k for k, v in test_set.class_map.items()}
+            shown = set()
+            num_viz = 5
+    
+            encoder.eval()
+            with torch.no_grad():
+                for pc, label in dataloader:
+                    pc = pc.float().to(device)
+                    label = label.item()
+    
+                    if label in shown:
+                        continue
+    
+                    x_vis, mask, neighborhood, center = encoder(pc, noaug=True)
+                    rec, gt = head(x_vis, mask, neighborhood, center)
+    
+                    vis_pts = neighborhood[0][~mask[0]].reshape(-1, 3).cpu().numpy()
+                    rec_pts = rec[0].reshape(-1, 3).cpu().numpy()
+                    full_pts = neighborhood[0].reshape(-1, 3).cpu().numpy()
+                    class_name = inv_class_map[label]
+    
+                    print(f"[{class_name}]")
+                    pcd_utils.viz_pcd([vis_pts, rec_pts, full_pts], titles=["Visible", "Reconstructed", "Ground Truth"])
+    
+                    shown.add(label)
+                    if len(shown) >= num_viz:
+                        break
                     
 if __name__ == "__main__":
     main()
