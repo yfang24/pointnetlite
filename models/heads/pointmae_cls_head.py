@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 
 class PointMAEClsHead(nn.Module):
-    def __init__(self, trans_dim=384, cls_dim=11):
+    def __init__(self, trans_dim=384, cls_dim=40):
         super().__init__()
         self.cls_token = nn.Parameter(torch.zeros(1, 1, trans_dim))
         self.cls_pos = nn.Parameter(torch.randn(1, 1, trans_dim))
