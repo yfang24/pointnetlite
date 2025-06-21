@@ -5,7 +5,8 @@ from models.encoders.pointmae_encoder import PointMAEEncoder
 ENCODER_REGISTRY = {
     "pointnet_encoder": PointNetEncoder,
     "pointnetlite_encoder": PointNetLiteEncoder,
-    "pointmae_encoder": PointMAEEncoder
+    "pointmae_encoder": PointMAEEncoder,
+    "pointnet2_encoder": PointNet2Encoder
 }
 
 def get_encoder(config):
