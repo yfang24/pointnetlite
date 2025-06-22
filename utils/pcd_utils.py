@@ -6,7 +6,49 @@ from scipy.spatial.distance import cdist
 from sklearn.neighbors import NearestNeighbors
 
 #=====
-#fps-knn-group
+#pointnet++: fps-ball-group
+#=====
+def ball_query(centers, points, radius, nsample):
+    B, G, _ = centers.shape
+    N = points.shape[1]
+
+    # Compute squared distance matrix (B, G, N)
+    dist = torch.cdist(centers, points, p=2)  # (B, G, N)
+
+    # Mask out distances greater than radius
+    mask = dist <= radius
+    idx = mask.nonzero(as_tuple=False)  # (num_valid, 3): [B_idx, G_idx, N_idx]
+
+    # Initialize with default index (e.g., nearest or zero)
+    output_idx = torch.full((B, G, nsample), fill_value=0, device=points.device, dtype=torch.long)
+
+    for b in range(B):
+        for g in range(G):
+            valid = torch.nonzero(mask[b, g], as_tuple=False).squeeze(-1)
+            if valid.numel() >= nsample:
+                output_idx[b, g] = valid[:nsample]
+            else:
+                # pad by repeating first neighbor
+                pad = valid[0].repeat(nsample - valid.numel())
+                output_idx[b, g] = torch.cat([valid, pad], dim=0)
+    return output_idx
+
+def sample_and_group_ball(points, num_group, group_size, radius):
+    '''
+    points: (B, N, 3)
+    returns:
+      - neighborhoods: (B, G, M, 3)
+      - centers: (B, G, 3)
+    '''
+    centers = farthest_point_sample_gpu_batch(points, num_group)  # (B, G, 3)
+    idx = ball_query(centers, points, radius, group_size)         # (B, G, M)
+    neighborhoods = group_points(points, idx)                     # (B, G, M, 3)
+    neighborhoods = neighborhoods - centers.unsqueeze(2)          # center relative
+    return neighborhoods, centers
+
+
+#=====
+#pointmae: fps-knn-group
 #=====
 def farthest_point_sample_gpu_batch(points, n):
     '''
