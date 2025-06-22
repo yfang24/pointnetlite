@@ -61,7 +61,7 @@ def main(exp_name):
     model = torch.nn.Sequential(encoder, head).to(device)
     loss_fn = get_loss(config)
 
-    load_checkpoint(encoder, head, checkpoint_path, device)
+    load_checkpoint(model, checkpoint_path, device)
 
     # Evaluate
     is_pretrain = config.get("pretrain", False)
