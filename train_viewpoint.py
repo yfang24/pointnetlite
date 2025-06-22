@@ -66,7 +66,7 @@ for epoch in range(epochs):
     pcs = []
     for verts, faces, labels in tqdm(train_dataloader, total=len(train_dataloader), desc="Train", leave=False):
         verts, faces, labels = verts[0].float().to(device), faces[0].long().to(device), labels[0].long().to(device)
-        mesh = Meshes(verts=verts*torch.tensor([[-1, 1, -1]], device=verts.device), faces=faces)
+        mesh = Meshes(verts=verts*torch.tensor([-1, 1, -1], device=verts.device), faces=faces)
 
         cam_pos = viewpoint_learner(labels)  # (V, 3)
 
