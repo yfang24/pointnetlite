@@ -5,6 +5,13 @@ import open3d as o3d
 from scipy.spatial.distance import cdist
 from sklearn.neighbors import NearestNeighbors
 
+def normalize_pcd_tensor(points):
+    center = points.mean(dim=0, keepdim=True)           # (1, 3)
+    points = points - center                            # center at origin    
+    scale = torch.norm(points, dim=1).max()             # scalar
+    points = points / scale                             # scale to unit sphere    
+    return points   
+    
 #=====
 #pointnet++: fps-ball-group
 #=====
