@@ -64,7 +64,7 @@ for epoch in range(epochs):
 
     correct, total, total_loss = 0, 0, 0.0
     pcs = []
-    for verts, faces, labels in tqdm(train_dataloader, total=len(train_loader), desc="Train", leave=False"):
+    for verts, faces, labels in tqdm(train_dataloader, total=len(train_loader), desc="Train", leave=False):
         verts, faces, labels = verts.float().to(device), faces.long().to(device), labels.long().to(device)
         mesh = Meshes(verts=verts*[-1, 1, -1], faces=faces)
 
