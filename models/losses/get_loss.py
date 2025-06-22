@@ -12,7 +12,7 @@ LOSS_REGISTRY = {
     "pointnet_loss": PointNetLoss,
     "chamfer_distance_l2": ChamferDistanceL2,
     "chamfer_distance_l1": ChamferDistanceL1,
-    "dgcnn_loss":DGCNNLoss
+    "dgcnn_loss": DGCNNLoss
 }
 
 def get_loss(config):
