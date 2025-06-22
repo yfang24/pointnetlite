@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from utils.pcd_utils import sample_and_group_ball
+from utils.pcd_utils import sample_and_group_ball, farthest_point_sample_gpu_batch, ball_query, group_points
 
 class PointNet2Encoder(nn.Module):
     def __init__(self, use_msg=False):
@@ -43,31 +43,6 @@ class PointNet2Encoder(nn.Module):
             last_dim = out_dim
         return nn.Sequential(*layers)
 
-    def forward(self, x):
-        """
-        Args:
-            x: (B, N, 3) point cloud
-
-        Returns:
-            (B, 1024) global feature vector
-        """
-        B, N, _ = x.shape
-
-        # SA1
-        neighborhoods, centers = sample_and_group_ball(x, self.sa1_params["num_group"], self.sa1_params["group_size"])
-        features = self._apply_mlp_blocks(neighborhoods, self.sa1_mlps)
-
-        # SA2
-        neighborhoods, centers = sample_and_group_ball(centers, self.sa2_params["num_group"], self.sa2_params["group_size"])
-        features = self._apply_mlp_blocks(neighborhoods, self.sa2_mlps)
-
-        # SA3 (global)
-        x = features.unsqueeze(-1)  # (B, 256, G, 1)
-        x = self.sa3_mlp_layers(x)
-        x = torch.max(x, dim=2)[0]  # (B, 1024, 1)
-        x = x.squeeze(-1)
-        return x  # (B, 1024)
-
     def _apply_mlp_blocks(self, neighborhoods, mlp_blocks):
         """
         neighborhoods: (B, G, S, 3)
@@ -76,3 +51,49 @@ class PointNet2Encoder(nn.Module):
         """
         x = neighborhoods.permute(0, 3, 2, 1)  # (B, 3, S, G)
         return torch.cat([mlp(x).max(dim=2)[0] for mlp in mlp_blocks], dim=1)  # (B, C_total, G); max-pooled over groups and concatenated across scales
+
+    def _sa_layer(self, input_points, num_group, radius, group_size, mlp_blocks):
+        centers = farthest_point_sample_gpu_batch(input_points, num_group)    
+        if self.use_msg:
+            feats_list = []
+            for r, k, mlp in zip(radius, group_size, mlp_blocks):
+                idx = ball_query(centers, input_points, r, k)
+                grouped = group_points(input_points, idx) - centers.unsqueeze(2)
+                f = mlp(grouped.permute(0, 3, 2, 1))  # (B, C, k, G)
+                f = torch.max(f, dim=2)[0]            # (B, C, G)
+                feats_list.append(f)
+            features = torch.cat(feats_list, dim=1)   # (B, sum(C), G)
+        else:
+            neighborhoods, centers = sample_and_group_ball(input_points, num_group, group_size, radius)
+            features = self._apply_mlp_blocks(neighborhoods, mlp_blocks)  # (B, C, G)    
+        return features, centers
+
+    def forward(self, x):
+        B, N, _ = x.shape
+
+        # SA1
+        features, centers = self._sa_layer(
+            x,
+            self.sa1_params["num_group"],
+            self.sa1_params["radius"],
+            self.sa1_params["group_size"],
+            self.sa1_mlps
+        )
+
+        # SA2
+        features, centers = self._sa_layer(
+            centers,
+            self.sa2_params["num_group"],
+            self.sa2_params["radius"],
+            self.sa2_params["group_size"],
+            self.sa2_mlps
+        )
+        
+        # SA3 (global)
+        x = features.unsqueeze(-1)  # (B, 256, G, 1)
+        x = self.sa3_mlp_layers(x)
+        x = torch.max(x, dim=2)[0]  # (B, 1024, 1)
+        x = x.squeeze(-1)
+        return x  # (B, 1024)
+
+    
