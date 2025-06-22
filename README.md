@@ -6,7 +6,7 @@ This repository contains a modular framework for training and evaluating lightwe
 
 ```
 your_project_root/
-├── pointnetlite-archived/
+├── pointnetlite/
 │   ├── configs/
 │   ├── datasets/
 │   ├── experiments/
@@ -24,8 +24,8 @@ your_project_root/
 
 ### 1. Clone the repository
 ```bash
-git clone https://github.com/yfang24/pointnetlite-archived.git
-cd pointnetlite-archived
+git clone https://github.com/yfang24/pointnetlite.git
+cd pointnetlite
 ```
 
 ### 2. Create and activate the environment
@@ -84,7 +84,7 @@ export MASTER_PORT=12355        # Must match across all processes
 python train.py --cfg config_name
 ```
 
-Results will be stored in your_project_root/pointnetlite-archived/experiments/exp_name/, including:
+Results will be stored in your_project_root/pointnetlite/experiments/exp_name/, including:
 
 - `checkpoint_best.pth`
 - `checkpoint_last.pth`
