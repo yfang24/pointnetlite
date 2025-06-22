@@ -55,7 +55,7 @@ class DGCNNEncoder(nn.Module):
         Args:
             x: (B, N, 3)
         Returns:
-            global feature: (B, emb_dims)
+            global feature: (B, emb_dims*2)
         """
         x1 = self.conv1(self._get_graph_feature(x, self.k)).max(dim=-1)[0]
         x2 = self.conv2(self._get_graph_feature(x1.transpose(1, 2), self.k)).max(dim=-1)[0]
