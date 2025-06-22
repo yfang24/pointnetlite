@@ -71,7 +71,7 @@ for epoch in range(epochs):
         cam_pos = viewpoint_learner(labels)  # (1, V, 3)
 
         v_idx = torch.randint(0, num_views, (1,)).item()
-        pts = mesh_utils.render_mesh_torch(mesh[b], cam_pos[b, v_idx], num_points=num_points, device=device)
+        pts = mesh_utils.render_mesh_torch(mesh, cam_pos[:, v_idx], num_points=num_points, device=device)
         pts = pcd_utils.normalize_pcd_tensor(pts)
         pts[:, [0, 2]] *= -1  # (N, 3)
         pcs.append(pts)
