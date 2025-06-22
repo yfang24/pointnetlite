@@ -50,8 +50,7 @@ class ModelNetMesh(Dataset):
             if not os.path.isdir(class_dir):
                 continue
             files = [f for f in os.listdir(class_dir) if f.endswith('.off')]
-            print(f"  - Class '{class_name}': {len(files)} files")
-            for fname in files:
+            for fname in tqdm(files, total=len(files), desc=f"Processing '{class_name}'", leave=False):
                 mesh_path = os.path.join(class_dir, fname)
                 mesh = o3d.io.read_triangle_mesh(mesh_path)
                 mesh = mesh_utils.align_mesh(mesh, class_name)
