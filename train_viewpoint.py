@@ -98,6 +98,7 @@ for epoch in range(epochs):
         total += pcs.size(0)
 
         pcs = []
+        targets = []
 
     scheduler.step()
 
