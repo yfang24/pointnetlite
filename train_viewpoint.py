@@ -143,14 +143,12 @@ for epoch in range(epochs):
     logger.info(f"[Eval] Acc = {val_acc:.2f}%, Loss = {val_avg_loss:.4f}")
 
     if val_acc > best_acc:
-    best_acc = val_acc
-    ckpt_path = exp_dir / "checkpoint_best.pth"
-    torch.save({
-        'epoch': epoch + 1,
-        'model_state_dict': model.state_dict(),
-        'viewpoint_state_dict': viewpoint_learner.state_dict(),
-        'optimizer_state_dict': optimizer.state_dict(),
-        'val_acc': val_acc,
-    }, ckpt_path)
-    logger.info(f"[Checkpoint] Saved best model at epoch {epoch+1} with acc {val_acc:.2f}%")
-
+        best_acc = val_acc
+        ckpt_path = exp_dir / "checkpoint_best.pth"
+        torch.save({
+            'epoch': epoch + 1,
+            'model_state_dict': model.state_dict(),
+            'viewpoint_state_dict': viewpoint_learner.state_dict(),
+            'optimizer_state_dict': optimizer.state_dict(),
+            'val_acc': val_acc,
+        }, ckpt_path)
