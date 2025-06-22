@@ -108,7 +108,7 @@ for epoch in range(epochs):
 
     val_correct, val_total, val_loss = 0, 0, 0.0
 
-    for pcs, labels in tqdm(test_loader, total=len(test_dataloader), desc="Train", leave=False"):
+    for pcs, labels in tqdm(test_loader, total=len(test_dataloader), desc="Eval", leave=False):
         pcs, labels = pcs.float().to(device), labels.long().to(device)
 
         with torch.no_grad():
