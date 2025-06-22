@@ -4,13 +4,15 @@ import torch.nn.functional as F
 
 from models.losses.pointnet_loss import PointNetLoss
 from models.losses.chamfer_distance_loss import ChamferDistanceL2, ChamferDistanceL1
+from models.losses.dgcnn_loss import DGCNNLoss
 
 # Registry of named loss classes or functions
 LOSS_REGISTRY = {
     "cross_entropy": nn.CrossEntropyLoss,
     "pointnet_loss": PointNetLoss,
     "chamfer_distance_l2": ChamferDistanceL2,
-    "chamfer_distance_l1": ChamferDistanceL1
+    "chamfer_distance_l1": ChamferDistanceL1,
+    "dgcnn_loss":DGCNNLoss
 }
 
 def get_loss(config):
