@@ -3,7 +3,7 @@ from pathlib import Path
 
 from utils.model_utils import unwrap_model
 
-def save_checkpoint(encoder, head, optimizer, scheduler, epoch, best_acc, exp_dir, is_best=False):
+def save_checkpoint(models, optimizer, scheduler, epoch, best_acc, exp_dir, is_best=False):
     checkpoint = {
         'encoder_state_dict': unwrap_model(encoder).state_dict(),
         'head_state_dict': unwrap_model(head).state_dict(),
