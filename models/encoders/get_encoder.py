@@ -2,12 +2,14 @@ from models.encoders.pointnet_encoder import PointNetEncoder
 from models.encoders.pointnetlite_encoder import PointNetLiteEncoder
 from models.encoders.pointmae_encoder import PointMAEEncoder
 from models.encoders.pointnet2_encoder import PointNet2Encoder
+from models.encoders.dgcnn_encoder import DGCNNEncoder
 
 ENCODER_REGISTRY = {
     "pointnet_encoder": PointNetEncoder,
     "pointnetlite_encoder": PointNetLiteEncoder,
     "pointmae_encoder": PointMAEEncoder,
-    "pointnet2_encoder": PointNet2Encoder
+    "pointnet2_encoder": PointNet2Encoder,
+    "dgcnn_encoder": DGCNNEncoder
 }
 
 def get_encoder(config):
