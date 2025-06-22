@@ -5,6 +5,9 @@ from torch.nn import Sequential, CrossEntropyLoss
 from torch.optim import Adam
 from torch.optim.lr_scheduler import StepLR
 from tqdm import tqdm
+from pathlib import Path
+from datetime import datetime
+import logging
 
 from datasets.modelnet_mesh import ModelNetMesh
 from datasets.scanobjectnn import ScanObjectNN
@@ -15,7 +18,7 @@ import utils.mesh_utils as mesh_utils
 import utils.pcd_utils as pcd_utils
 from pytorch3d.structures import Meshes
 
-PROJ_ROOT = "/mmfs1/projects/smartlab/"
+PROJ_ROOT = Path("/mmfs1/projects/smartlab/")
 
 # ==================== Setup ====================
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -26,10 +29,20 @@ lambda_repel = 0.05
 epochs = 200
 batch_size = 32
 
+# ==================== Logging ====================
+timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+exp_dir = PROJ_ROOT / f"experiments/train_viewpoint_{timestamp}"
+exp_dir.mkdir(parents=True, exist_ok=True)
+
+log_path = exp_dir / "log.txt"
+logging.basicConfig(filename=log_path, level=logging.INFO, format="%(asctime)s - %(message)s")
+logger = logging.getLogger()
+logger.addHandler(logging.StreamHandler())  # Also print to stdout
+
 # ==================== Dataset ====================
 train_dataset = ModelNetMesh(
-    root_dir=os.path.join(PROJ_ROOT, "data/modelnet40_manually_aligned"),
-    class_map=os.path.join(PROJ_ROOT, "code/configs/class_map_modelnet11.json"),
+    root_dir=PROJ_ROOT / "data/modelnet40_manually_aligned",
+    class_map=PROJ_ROOT / "code/configs/class_map_modelnet11.json",
     split="train",
     use_cache=True
 )
@@ -58,6 +71,7 @@ optimizer = torch.optim.Adam(
 scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=20, gamma=0.7)
 
 # ==================== Training ====================
+best_acc = 0.0
 for epoch in range(epochs):
     model.train()
     viewpoint_learner.train()
@@ -104,7 +118,7 @@ for epoch in range(epochs):
 
     acc = 100.0 * correct / total
     avg_loss = total_loss / total
-    print(f"Epoch {epoch+1}: Acc = {acc:.2f}%, Loss = {avg_loss:.4f}")
+    logger.info(f"Epoch {epoch+1}: Acc = {acc:.2f}%, Loss = {avg_loss:.4f}")
 
     # ========== Evaluation ==========
     model.eval()
@@ -119,12 +133,24 @@ for epoch in range(epochs):
             preds = model(pcs)
             loss = loss_fn(preds, labels)
 
-        val_loss += loss.item() * B
+        val_loss += loss.item() * batch_size
         pred_labels = preds.argmax(dim=1)
         val_correct += pred_labels.eq(labels).sum().item()
-        val_total += B
+        val_total += batch_size
 
     val_acc = 100.0 * val_correct / val_total
     val_avg_loss = val_loss / val_total
-    print(f"[Eval] Acc = {val_acc:.2f}%, Loss = {val_avg_loss:.4f}")
+    logger.info(f"[Eval] Acc = {val_acc:.2f}%, Loss = {val_avg_loss:.4f}")
+
+    if val_acc > best_acc:
+    best_acc = val_acc
+    ckpt_path = exp_dir / "checkpoint_best.pth"
+    torch.save({
+        'epoch': epoch + 1,
+        'model_state_dict': model.state_dict(),
+        'viewpoint_state_dict': viewpoint_learner.state_dict(),
+        'optimizer_state_dict': optimizer.state_dict(),
+        'val_acc': val_acc,
+    }, ckpt_path)
+    logger.info(f"[Checkpoint] Saved best model at epoch {epoch+1} with acc {val_acc:.2f}%")
 
