@@ -6,7 +6,8 @@ from torch.optim import Adam
 from torch.optim.lr_scheduler import StepLR
 from tqdm import tqdm
 
-from dataset.modelnet_mesh import ModelNetMesh
+from datasets.modelnet_mesh import ModelNetMesh
+from datasets.scanobjectnn import ScanObjectNN
 from models.modules.viewpoint_learner import ViewpointLearner
 from models.encoders.pointnetlite_encoder import PointNetLiteEncoder
 from models.heads.pointnet_cls_head import PointNetClsHead
@@ -23,7 +24,7 @@ num_views = 3
 num_points = 1024
 lambda_repel = 0.05
 epochs = 200
-batch_size = 1
+batch_size = 32
 
 # ==================== Dataset ====================
 train_dataset = ModelNetMesh(
@@ -32,7 +33,16 @@ train_dataset = ModelNetMesh(
     split="train",
     use_cache=True
 )
-train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=4)
+train_dataloader = DataLoader(train_dataset, batch_size=1, shuffle=True, num_workers=4, drop_last=True)
+
+test_dataset = ScanObjectNN(
+    root_dir=os.path.join(PROJ_ROOT, "data/scanobjectnn/main_split_nobg"),
+    class_map=os.path.join(PROJ_ROOT, "code/configs/class_map_scanobjectnn11.json"),
+    split="test",
+    normalize=True,
+    use_cache=True
+)
+test_dataloader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, num_workers=4)
 
 # ==================== Modules ====================
 viewpoint_learner = ViewpointLearner(num_classes=num_classes, num_views=num_views).to(device)
@@ -53,22 +63,23 @@ for epoch in range(epochs):
     viewpoint_learner.train()
 
     correct, total, total_loss = 0, 0, 0.0
-
-    for verts, faces, labels in tqdm(train_loader, total=len(train_loader), desc="Train", leave=False"):
+    pcs = []
+    for verts, faces, labels in tqdm(train_dataloader, total=len(train_loader), desc="Train", leave=False"):
         verts, faces, labels = verts.float().to(device), faces.long().to(device), labels.long().to(device)
-        B = labels.shape[0]
         mesh = Meshes(verts=verts*[-1, 1, -1], faces=faces)
 
-        cam_pos = viewpoint_learner(labels)  # (B, V, 3)
+        cam_pos = viewpoint_learner(labels)  # (1, V, 3)
 
-        pcs = []
-        for b in range(B):
-            v_idx = torch.randint(0, num_views, (1,)).item()
-            pts = mesh_utils.render_mesh_torch(mesh[b], cam_pos[b, v_idx], num_points=num_points, device=device)
-            pts = pcd_utils.normalize_pcd_tensor(pts)
-            pts[:, [0, 2]] *= -1  # (N, 3)
-            pcs.append(pts)
-        pcs = torch.stack(pcs)  # (B, N, 3)
+        v_idx = torch.randint(0, num_views, (1,)).item()
+        pts = mesh_utils.render_mesh_torch(mesh[b], cam_pos[b, v_idx], num_points=num_points, device=device)
+        pts = pcd_utils.normalize_pcd_tensor(pts)
+        pts[:, [0, 2]] *= -1  # (N, 3)
+        pcs.append(pts)
+
+        if len(pcs) == batch_size:
+            pcs = torch.stack(pcs)  # (B, N, 3)
+        else:
+            continue
 
         optimizer.zero_grad()
         preds = model(pcs)
@@ -82,7 +93,9 @@ for epoch in range(epochs):
         pred_labels = preds.argmax(dim=1)
         correct += pred_labels.eq(labels).sum().item()
         total += pcs.size(0)
-        
+
+        pcs = []
+
     scheduler.step()
 
     acc = 100.0 * correct / total
@@ -95,7 +108,7 @@ for epoch in range(epochs):
 
     val_correct, val_total, val_loss = 0, 0, 0.0
 
-    for pcs, labels in tqdm(test_loader, total=len(test_loader), desc="Train", leave=False]"):
+    for pcs, labels in tqdm(test_loader, total=len(test_dataloader), desc="Train", leave=False]"):
         pcs, labels = pcs.float().to(device), labels.long().to(device)
 
         with torch.no_grad():
