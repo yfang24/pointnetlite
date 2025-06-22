@@ -84,7 +84,12 @@ export MASTER_PORT=12355        # Must match across all processes
 python train.py --cfg config_name
 ```
 
-Results will be stored in your_project_root/pointnetlite/experiments/exp_name/, including:
+Results will be stored in:
+```bash
+your_project_root/pointnetlite/experiments/exp_name/
+```
+
+Including:
 
 - `checkpoint_best.pth`
 - `checkpoint_last.pth`
