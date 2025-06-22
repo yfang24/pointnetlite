@@ -64,6 +64,7 @@ for epoch in range(epochs):
 
     correct, total, total_loss = 0, 0, 0.0
     pcs = []
+    targets = []
     for verts, faces, labels in tqdm(train_dataloader, total=len(train_dataloader), desc="Train", leave=False):
         verts, faces, labels = verts.float().to(device), faces.long().to(device), labels.long().to(device)
         mesh = Meshes(verts=verts*torch.tensor([[-1, 1, -1]], device=verts.device), faces=faces)
@@ -75,15 +76,17 @@ for epoch in range(epochs):
         pts = pcd_utils.normalize_pcd_tensor(pts)
         pts[:, [0, 2]] *= -1  # (N, 3)
         pcs.append(pts)
+        targets.append(labels[0])
 
         if len(pcs) == batch_size:
-            pcs = torch.stack(pcs)  # (B, N, 3)
+            pcs = torch.stack(pcs).to(device)  # (B, N, 3)
+            targets = torch.stack(targets).to(device)  # (B, )
         else:
             continue
 
         optimizer.zero_grad()
         preds = model(pcs)
-        loss = loss_fn(preds, labels)
+        loss = loss_fn(preds, targets)
         repel = viewpoint_learner.repelling_loss()
         total_batch_loss = loss + lambda_repel * repel
         total_batch_loss.backward()
