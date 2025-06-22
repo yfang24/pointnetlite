@@ -323,10 +323,10 @@ def run_training(rank, world_size, local_rank, config, config_path, device, use_
                     converged_time = sum(epoch_times)
                     converged_mem = max(epoch_mems)
 
-                    save_checkpoint(encoder, head, optimizer, scheduler, epoch, best_acc, exp_dir, is_best=True)
+                    save_checkpoint(model, optimizer, scheduler, epoch, best_acc, exp_dir, is_best=True)
 
     if rank == 0:
-        save_checkpoint(encoder, head, optimizer, scheduler, epoch, best_acc, exp_dir, is_best=False)
+        save_checkpoint(model, optimizer, scheduler, epoch, best_acc, exp_dir, is_best=False)
         logger.info(f"Best Test Acc: {best_acc:.2f}% at Epoch {best_epoch}")
         logger.info(f"[Converged] Epoch: {converged_epoch} | Mean OA: {best_window_mean:.2f}% | Time: {converged_time:.2f}s | Mem: {converged_mem:.1f}MB")
         logger.info("Training complete.")
@@ -489,10 +489,10 @@ def run_pretraining(rank, world_size, local_rank, config, config_path, device, u
                 best_epoch = epoch + 1
                 converged_time = sum(epoch_times)
                 converged_mem = max(epoch_mems)
-                save_checkpoint(encoder, decoder, optimizer, scheduler, epoch, best_loss, exp_dir, is_best=True)
+                save_checkpoint(model, optimizer, scheduler, epoch, best_loss, exp_dir, is_best=True)
 
     if rank == 0:
-        save_checkpoint(encoder, decoder, optimizer, scheduler, epoch, best_loss, exp_dir, is_best=False)
+        save_checkpoint(model, optimizer, scheduler, epoch, best_loss, exp_dir, is_best=False)
         logger.info(f"Best Val Loss: {best_loss:.4f} at Epoch {best_epoch}")
         logger.info(f"[Converged] Epoch: {best_epoch} | Loss: {best_loss:.4f} | Time: {converged_time:.2f}s | Mem: {converged_mem:.1f}MB")
         logger.info("Pretraining complete.")
