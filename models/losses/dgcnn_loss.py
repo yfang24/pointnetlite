@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-class DGCNNClsLoss(nn.Module):
+class DGCNNLoss(nn.Module):
     def __init__(self, smoothing=True, eps=0.2):
         super().__init__()
         self.smoothing = smoothing
