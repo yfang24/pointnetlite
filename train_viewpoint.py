@@ -65,13 +65,13 @@ for epoch in range(epochs):
     correct, total, total_loss = 0, 0, 0.0
     pcs = []
     for verts, faces, labels in tqdm(train_dataloader, total=len(train_dataloader), desc="Train", leave=False):
-        verts, faces, labels = verts.float().to(device), faces.long().to(device), labels.long().to(device)
+        verts, faces, labels = verts[0].float().to(device), faces[0].long().to(device), labels[0].long().to(device)
         mesh = Meshes(verts=verts*torch.tensor([[-1, 1, -1]], device=verts.device), faces=faces)
 
-        cam_pos = viewpoint_learner(labels)  # (1, V, 3)
+        cam_pos = viewpoint_learner(labels)  # (V, 3)
 
         v_idx = torch.randint(0, num_views, (1,)).item()
-        pts = mesh_utils.render_mesh_torch(mesh, cam_pos[:, v_idx], num_points=num_points, device=device)
+        pts = mesh_utils.render_mesh_torch(mesh, cam_pos[v_idx], num_points=num_points, device=device)
         pts = pcd_utils.normalize_pcd_tensor(pts)
         pts[:, [0, 2]] *= -1  # (N, 3)
         pcs.append(pts)
