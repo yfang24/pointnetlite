@@ -64,6 +64,7 @@ class DGCNNEncoder(nn.Module):
 
         x_cat = torch.cat((x1, x2, x3, x4), dim=1)  # (B, 512, N)
         x_feat = self.conv5(x_cat)                 # (B, emb_dims, N)
+        
         x1 = F.adaptive_max_pool1d(x_feat, 1).view(B, -1)  # (B, emb_dims)
         x2 = F.adaptive_avg_pool1d(x_feat, 1).view(B, -1)
         x_global = torch.cat((x1, x2), dim=1)
