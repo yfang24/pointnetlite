@@ -15,7 +15,7 @@ import utils.mesh_utils as mesh_utils
 import utils.pcd_utils as pcd_utils
 from pytorch3d.structures import Meshes
 
-PROJ_ROOT = "/mmfs1/projects/smartlab/code/"
+PROJ_ROOT = "/mmfs1/projects/smartlab/"
 
 # ==================== Setup ====================
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
