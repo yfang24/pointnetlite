@@ -26,7 +26,7 @@ def knn_gather(points, centers, k):
     '''
     points: (B, N, 3)
     centers: (B, G, 3)
-    return: (B, G, k) ? indices of k-NNs of each center in the full point cloud
+    return: (B, G, k); indices of k-NNs of each center in the full point cloud
     '''
     B, N, _ = points.shape
     G = centers.shape[1]
