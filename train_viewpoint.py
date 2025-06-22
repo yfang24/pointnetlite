@@ -31,7 +31,7 @@ batch_size = 32
 
 # ==================== Logging ====================
 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-exp_dir = PROJ_ROOT / f"experiments/train_viewpoint_{timestamp}"
+exp_dir = PROJ_ROOT / f"codes/experiments/train_viewpoint_{timestamp}"
 exp_dir.mkdir(parents=True, exist_ok=True)
 
 log_path = exp_dir / "log.txt"
