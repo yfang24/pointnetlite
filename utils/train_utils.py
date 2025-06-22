@@ -42,7 +42,6 @@ def get_optimizer(config, named_params): # named_params: list of (name, param) t
 
     opt_type = opt_cfg.get("name", "adam")
     opt_args = opt_cfg.get("args", {})
-    weight_decay = opt_args.get("weight_decay", 0.05)
 
     def add_weight_decay(named_params, weight_decay=0.05, skip_list=()):
         decay, no_decay = [], []
@@ -57,14 +56,15 @@ def get_optimizer(config, named_params): # named_params: list of (name, param) t
             {'params': no_decay, 'weight_decay': 0.0},
             {'params': decay, 'weight_decay': weight_decay}
         ]
-    param_groups = add_weight_decay(named_params, weight_decay)
+        
+    param_groups = add_weight_decay(named_params, opt_args.get("weight_decay", 0.05))
 
     if opt_type == "adamw":
         return torch.optim.AdamW(param_groups, **opt_args)
     elif opt_type == "adam":
         return torch.optim.Adam(param_groups, **opt_args)
     elif opt_type == "sgd":
-        return torch.optim.SGD(param_groups, nesterov=True, **opt_args)
+        return torch.optim.SGD(param_groups, nesterov=True, momentum=0.9, **opt_args)
     else:
         raise ValueError(f"Unsupported optimizer type: {opt_type}")        
 
