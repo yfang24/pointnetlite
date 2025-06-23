@@ -566,25 +566,23 @@ def farthest_point_sample_gpu(points, n):
     '''
     FPS: iteratively selects the point that is farthest from the previously selected points.
     preserves the distribution of points (bettter than uniform sampling).
-    return ndarray.
+    return tensor.
     in torch, use gpu
     '''
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    points_tensor = torch.tensor(points, device=device)
-    
-    num_points = points_tensor.shape[0]
-    sampled_indices = torch.zeros(n, dtype=torch.long, device=device) # indices of the sampled points in the original point cloud
-    distances = torch.full((num_points,), float('inf'), device=device) # min dist of each point in the original pcd from sampled points; initialized to a very big value
-    farthest_idx = torch.randint(0, num_points, (1,), device=device).item() # idx of farthest point; randomly select the starting point
+    device = points.device
+    num_points = points.shape[0]
+    sampled_indices = torch.zeros(n, dtype=torch.long, device=device)
+    distances = torch.full((num_points,), float('inf'), device=device)
+    farthest_idx = torch.randint(0, num_points, (1,), device=device).item()
 
     for i in range(n):
-        sampled_indices[i] = farthest_idx # add farthest point to sampled point set
-        farthest_point = points_tensor[farthest_idx]
-        dist = torch.sum((points_tensor - farthest_point) ** 2, dim=1) # squared Euclidean dist of each point in original pcd from farthest point
-        distances = torch.minimum(distances, dist) # dist to the nearest sampled point
+        sampled_indices[i] = farthest_idx
+        farthest_point = points[farthest_idx]
+        dist = torch.sum((points - farthest_point) ** 2, dim=1)
+        distances = torch.minimum(distances, dist)
         farthest_idx = torch.argmax(distances).item()
 
-    sampled_points = points_tensor[sampled_indices].cpu().numpy()
+    sampled_points = points[sampled_indices]
     return sampled_points
 
 def density_based_sample(points, n):
