@@ -438,7 +438,7 @@ def run_pretraining(rank, world_size, local_rank, config, config_path, device, u
 
     # Model
     encoder = get_encoder(config).to(device)
-    decoder = get_head(config).to(device)  # Here head is decoder for pretraining
+    head = get_head(config).to(device)  # Here head is decoder for pretraining
     model = torch.nn.Sequential(encoder, head).to(device)
     
     if use_ddp:
