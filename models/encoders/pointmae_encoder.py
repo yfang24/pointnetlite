@@ -34,7 +34,7 @@ class PointGroupEncoder(nn.Module):
         
         
 class PointMAEEncoder(nn.Module):
-    def __init__(self, encoder_dims=384, trans_dim=384, depth=12, drop_path_rate=0.1,
+    def __init__(self, encoder_dims=384, trans_dim=384, depth=12, drop_path=0.1,
                  num_heads=6, mask_ratio=0.6, mask_type='rand', group_size=32, num_group=64):
         super().__init__()        
         self.group_size = group_size
@@ -50,11 +50,11 @@ class PointMAEEncoder(nn.Module):
             nn.Linear(128, trans_dim),
         )
 
-        dpr = [x.item() for x in torch.linspace(0, drop_path_rate, depth)]
+        dpr = [x.item() for x in torch.linspace(0, drop_path, depth)]
         self.blocks = TransformerEncoder(
             embed_dim=trans_dim,
             depth=depth,
-            drop_path_rate=dpr,
+            drop_path=dpr,
             num_heads=num_heads,
         )
         self.norm = nn.LayerNorm(trans_dim)
