@@ -43,7 +43,7 @@ class PointMAEEncoder(nn.Module):
         self.trans_dim = trans_dim
         self.mask_type = mask_type
         
-        self.encoder = PointGroupEncoder(encoder_channel=encoder_dims)
+        self.encoder = PointGroupEncoder(encoder_dims=encoder_dims)
         self.pos_embed = nn.Sequential(
             nn.Linear(3, 128),
             nn.GELU(),
