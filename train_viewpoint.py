@@ -161,7 +161,7 @@ for epoch in range(epochs):
     mem_used = torch.cuda.max_memory_allocated(device) / 1024**2  # MB
     epoch_time = end_time - start_time
     
-    logger.info(f"[Eval]  Acc = {acc:.2f}% | Loss = {avg_loss:.4f} | Time = {epoch_time:.1f}s | Mem = {mem_used:.1f} MB")
+    logger.info(f"[Eval]  Acc = {val_acc:.2f}% | Loss = {val_avg_loss:.4f} | Time = {epoch_time:.1f}s | Mem = {mem_used:.1f} MB")
 
     if val_acc > best_acc:
         best_acc = val_acc
