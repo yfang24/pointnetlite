@@ -50,8 +50,8 @@ train_dataset = ModelNetMesh(
 train_dataloader = DataLoader(train_dataset, batch_size=1, shuffle=True, num_workers=4, drop_last=True)
 
 test_dataset = ScanObjectNN(
-    root_dir=os.path.join(PROJ_ROOT, "data/scanobjectnn/main_split_nobg"),
-    class_map=os.path.join(PROJ_ROOT, "code/configs/class_map_scanobjectnn11.json"),
+    root_dir=PROJ_ROOT / "data/scanobjectnn/main_split_nobg",
+    class_map=PROJ_ROOT / "code/configs/class_map_scanobjectnn11.json",
     split="test",
     normalize=True,
     use_cache=True
