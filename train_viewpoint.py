@@ -47,7 +47,10 @@ train_dataset = ModelNetMesh(
     split="train",
     use_cache=True
 )
-train_dataloader = DataLoader(train_dataset, batch_size=batch_size//num_views, shuffle=True, num_workers=4, drop_last=True)
+def collate_mesh(batch):
+    verts_batch, faces_batch, labels_batch = zip(*batch)
+    return list(verts_batch), list(faces_batch), torch.tensor(labels_batch)
+train_dataloader = DataLoader(train_dataset, batch_size=batch_size//num_views, shuffle=True, num_workers=4, drop_last=True, collate_fn=collate_mesh)
 
 test_dataset = ScanObjectNN(
     root_dir=PROJ_ROOT / "data/scanobjectnn/main_split_nobg",
