@@ -48,7 +48,7 @@ class TransformerBlock(nn.Module):
                  drop=0., attn_drop=0., drop_path=0.):
         super().__init__()
         self.norm1 = nn.LayerNorm(dim)
-        self.attn = Attention(dim, num_heads, qkv_bias, qk_scale, attn_drop, drop)
+        self.attn = MultiHeadAttention(dim, num_heads, qkv_bias, qk_scale, attn_drop, drop)
         self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
         self.norm2 = nn.LayerNorm(dim)
         self.mlp = Mlp(dim, int(dim * mlp_ratio), drop=drop)
