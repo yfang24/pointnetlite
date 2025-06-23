@@ -7,7 +7,7 @@ import numpy as np
 from tqdm import tqdm
 from pathlib import Path
 from datetime import datetime
-from timm.scheduler.cosine_lr import CosineLRScheduler
+from timm.scheduler import CosineLRScheduler
 from torch.utils.data import DataLoader, DistributedSampler
 from torch.nn.parallel import DistributedDataParallel
 from sklearn.metrics import confusion_matrix
@@ -41,32 +41,34 @@ def get_optimizer(config, named_params): # named_params: list of (name, param) t
         )
 
     opt_type = opt_cfg.get("name", "adam")
-    opt_args = opt_cfg.get("args", {})
-
-    def add_weight_decay(named_params, weight_decay=0.05, skip_list=()):
-        decay, no_decay = [], []
-        for name, param in named_params:
-            if not param.requires_grad:
-                continue
-            if len(param.shape) == 1 or name.endswith(".bias") or 'token' in name or name in skip_list:
-                no_decay.append(param)
-            else:
-                decay.append(param)
-        return [
-            {'params': no_decay, 'weight_decay': 0.0},
-            {'params': decay, 'weight_decay': weight_decay}
-        ]
-        
-    param_groups = add_weight_decay(named_params, opt_args.get("weight_decay", 0.05))
-
+    opt_args = opt_cfg.get("args", {})    
+            
     if opt_type == "adamw":
+        # AdamW decouple weight decay
+        def add_weight_decay(named_params, weight_decay=1e-5, skip_list=()):
+            decay, no_decay = [], []
+            for name, param in named_params:
+                if not param.requires_grad:
+                    continue
+                if len(param.shape) == 1 or name.endswith(".bias") or 'token' in name or name in skip_list:
+                    no_decay.append(param)
+                else:
+                    decay.append(param)
+            return [
+                {'params': no_decay, 'weight_decay': 0.0},
+                {'params': decay, 'weight_decay': weight_decay}
+            ]
+        
+        param_groups = add_weight_decay(named_params, opt_args.get("weight_decay", 1e-5))
         return torch.optim.AdamW(param_groups, **opt_args)
-    elif opt_type == "adam":
-        return torch.optim.Adam(param_groups, **opt_args)
-    elif opt_type == "sgd":
-        return torch.optim.SGD(param_groups, nesterov=True, momentum=0.9, **opt_args)
     else:
-        raise ValueError(f"Unsupported optimizer type: {opt_type}")        
+        params = [p for _, p in named_params if p.requires_grad]
+        if opt_type == "adam":
+            return torch.optim.Adam(params, **opt_args)
+        elif opt_type == "sgd":
+            return torch.optim.SGD(params, nesterov=True, momentum=0.9, **opt_args)
+        else:
+            raise ValueError(f"Unsupported optimizer type: {opt_type}")        
 
 def get_scheduler(config, optimizer):
     sched_cfg = config.get("scheduler", None)
