@@ -116,9 +116,6 @@ for epoch in range(epochs):
         correct += pred_labels.eq(pc_labels).sum().item()
         total += pcs.size(0)
 
-        pcs = []
-        targets = []
-
     scheduler.step()  
     
     acc = 100.0 * correct / total
