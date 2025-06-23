@@ -446,7 +446,7 @@ def run_pretraining(rank, world_size, local_rank, config, config_path, device, u
 
     # Model Profile
     if rank == 0:
-        num_points = getattr(train_set, "num_points", train_set[0].shape[0])
+        num_points = getattr(train_set, "num_points", train_set[0][0].shape[0])
         dummy_input = torch.rand(1, num_points, 3).float().to(device)
 
         profiled_model = model.module if isinstance(model, DistributedDataParallel) else model
