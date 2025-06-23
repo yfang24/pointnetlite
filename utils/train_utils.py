@@ -85,13 +85,10 @@ def get_scheduler(config, optimizer):
         return CosineLRScheduler(
             optimizer,
             t_initial=sched_args.get("epochs", config.get("epochs", 200)),
-            t_mul=1,
             lr_min=1e-6,
-            decay_rate=0.1,
+            cycle_mul=1,
             warmup_lr_init=1e-6,
             warmup_t=sched_args.get("initial_epochs", 10),
-            cycle_limit=1,
-            t_in_epochs=True
         )
     else:
         raise ValueError(f"Unsupported scheduler type: {sched_type}")
