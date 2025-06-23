@@ -86,7 +86,7 @@ for epoch in range(epochs):
     correct, total, total_loss = 0, 0, 0.0
 
     for verts, faces, labels in tqdm(train_dataloader, total=len(train_dataloader), desc="Train", leave=False):
-        verts = [v * torch.tensor([[-1, 1, -1]]).float().to(device) for v in verts]
+        verts = [v * torch.tensor([[-1, 1, -1]], device=v.device).float().to(device) for v in verts]
         faces = [f.long().to(device) for f in faces]
         labels = labels.long().to(device)
 
