@@ -90,7 +90,7 @@ for epoch in range(epochs):
         faces = [f.long().to(device) for f in faces]
         labels = labels.long().to(device)
 
-        mesh = Meshes(verts=verts*torch.tensor([[-1, 1, -1]], device=verts.device), faces=faces)
+        mesh = Meshes(verts=verts, faces=faces)
 
         cam_pos = viewpoint_learner(labels)  # (B, V, 3)
 
