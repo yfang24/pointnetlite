@@ -13,7 +13,7 @@ import utils.pcd_utils as pcd_utils
 from configs.load_class_map import load_class_map
 
 class ModelNetRender(Dataset):
-    def __init__(self, root_dir, class_map, split='train', num_points=1024, num_views=3, single_view=False, cache_dir=None, use_cache=True, device=torch.device('cuda')):
+    def __init__(self, root_dir, class_map, split='train', num_points=1024, num_views=3, single_view=True, cache_dir=None, use_cache=True, device=torch.device('cuda')):
         self.root_dir = root_dir
         self.split = split
         self.num_points = num_points
