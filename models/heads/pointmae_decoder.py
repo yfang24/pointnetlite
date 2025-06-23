@@ -4,7 +4,7 @@ import torch.nn as nn
 from models.modules.transformer_modules import TransformerDecoder
 
 class PointMAEDecoder(nn.Module):
-    def __init__(self, trans_dim=384, group_size=32, drop_path_rate=0.1, depth=4, num_heads=6):
+    def __init__(self, trans_dim=384, group_size=32, drop_path=0.1, depth=4, num_heads=6):
         super().__init__()
         self.group_size = group_size
         self.trans_dim = trans_dim
@@ -16,11 +16,11 @@ class PointMAEDecoder(nn.Module):
             nn.Linear(128, trans_dim)
         )
 
-        dpr = [x.item() for x in torch.linspace(0, drop_path_rate, depth)]
+        dpr = [x.item() for x in torch.linspace(0, drop_path, depth)]
         self.decoder = TransformerDecoder(
             embed_dim=trans_dim,
             depth=depth,
-            drop_path_rate=dpr,
+            drop_path=dpr,
             num_heads=num_heads,
         )
 
