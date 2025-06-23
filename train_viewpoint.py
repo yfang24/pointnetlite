@@ -100,7 +100,7 @@ for epoch in range(epochs):
         for b in range(labels.size(0)):
             for v in range(num_views):
                 view_dir = cam_pos[b, v]  # (3,)
-                pts = render_mesh_torch(meshes[b], view_dir, num_points=num_points, device=device)
+                pts = mesh_utils.render_mesh_torch(meshes[b], view_dir, num_points=num_points, device=device)
                 pts = pcd_utils.normalize_pcd_tensor(pts)
                 pts[:, [0, 2]] *= -1
                 pcs.append(pts)                 # (N, 3)
