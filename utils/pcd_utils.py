@@ -64,11 +64,21 @@ def farthest_point_sample_gpu_batch(points, n):
     '''
     B, N, _ = points.shape
     device = points.device
-    sampled_points = torch.zeros(B, n, 3, device=device)
 
-    for b in range(B):
-        sampled_points[b] = farthest_point_sample_gpu(points[b], n)
+    centroids = torch.zeros(B, n, dtype=torch.long, device=device)
+    distances = torch.full((B, N), 1e10, device=device)
+    farthest = torch.randint(0, N, (B,), dtype=torch.long, device=device)
+    batch_indices = torch.arange(B, device=device)
 
+    for i in range(n):
+        centroids[:, i] = farthest
+        centroid = points[batch_indices, farthest]  # (B, 3)
+        dist = torch.sum((points - centroid[:, None, :]) ** 2, dim=-1)  # (B, N)
+        mask = dist < distances
+        distances[mask] = dist[mask]
+        farthest = torch.max(distances, dim=1)[1]
+
+    sampled_points = points[batch_indices[:, None], centroids]  # (B, n, 3)
     return sampled_points
 
 def knn_gather(points, centers, k):
