@@ -334,7 +334,7 @@ def run_training(rank, world_size, local_rank, config, config_path, device, use_
 #=====================
 #pretrain
 #=====================
-def pretrain_one_epoch(model, dataloader, loss_fn, optimizer, scheduler, device, logger=None):
+def pretrain_one_epoch(epoch, model, dataloader, loss_fn, optimizer, scheduler, device, logger=None):
     model.train()
     torch.cuda.reset_peak_memory_stats(device)
     start_time = time.time()
@@ -355,7 +355,7 @@ def pretrain_one_epoch(model, dataloader, loss_fn, optimizer, scheduler, device,
         total_loss += loss.item() * inputs.size(0)
         total += inputs.size(0)
 
-    scheduler.step()
+    scheduler.step(epoch)
 
     end_time = time.time()
     mem_used = torch.cuda.max_memory_allocated(device) / 1024**2  # MB
@@ -474,7 +474,7 @@ def run_pretraining(rank, world_size, local_rank, config, config_path, device, u
             logger.info(f"Epoch {epoch+1}/{epochs}")
 
         train_loss, train_time, train_mem = pretrain_one_epoch(
-            model, train_loader, loss_fn, optimizer, scheduler, device, logger if rank == 0 else None
+            epoch, model, train_loader, loss_fn, optimizer, scheduler, device, logger if rank == 0 else None
         )
         val_loss, val_time, val_mem = pretrain_evaluate(
             model, val_loader, loss_fn, device, logger if rank == 0 else None
