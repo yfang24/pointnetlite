@@ -7,6 +7,7 @@ from torch.optim.lr_scheduler import StepLR
 from tqdm import tqdm
 from pathlib import Path
 from datetime import datetime
+import time
 import logging
 
 from datasets.modelnet_mesh import ModelNetMesh
@@ -31,7 +32,7 @@ batch_size = 32
 
 # ==================== Logging ====================
 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-exp_dir = PROJ_ROOT / f"codes/experiments/train_viewpoint_{timestamp}"
+exp_dir = PROJ_ROOT / f"code/experiments/train_viewpoint_{timestamp}"
 exp_dir.mkdir(parents=True, exist_ok=True)
 
 log_path = exp_dir / "log.txt"
@@ -76,6 +77,9 @@ for epoch in range(epochs):
     model.train()
     viewpoint_learner.train()
 
+    torch.cuda.reset_peak_memory_stats(device)
+    start_time = time.time()
+
     correct, total, total_loss = 0, 0, 0.0
     pcs = []
     targets = []
@@ -83,10 +87,11 @@ for epoch in range(epochs):
         verts, faces, labels = verts.float().to(device), faces.long().to(device), labels.long().to(device)
         mesh = Meshes(verts=verts*torch.tensor([[-1, 1, -1]], device=verts.device), faces=faces)
 
-        cam_pos = viewpoint_learner(labels)  # (1, V, 3)
-
-        v_idx = torch.randint(0, num_views, (1,)).item()
-        pts = mesh_utils.render_mesh_torch(mesh, cam_pos[0, v_idx], num_points=num_points, device=device)
+        cam_pos = viewpoint_learner(labels)  # (1, V, 3)        
+        v_idx = torch.randint(0, num_views, (1,), device=device)
+        selected_pos = cam_pos[0].index_select(0, v_idx).squeeze(0)
+        
+        pts = mesh_utils.render_mesh_torch(mesh, selected_pos, num_points=num_points, device=device)
         pts = pcd_utils.normalize_pcd_tensor(pts)
         pts[:, [0, 2]] *= -1  # (N, 3)
         pcs.append(pts)
@@ -114,16 +119,24 @@ for epoch in range(epochs):
         pcs = []
         targets = []
 
-    scheduler.step()
-
+    scheduler.step()  
+    
     acc = 100.0 * correct / total
     avg_loss = total_loss / total
-    logger.info(f"Epoch {epoch+1}: Acc = {acc:.2f}%, Loss = {avg_loss:.4f}")
+
+    end_time = time.time()
+    mem_used = torch.cuda.max_memory_allocated(device) / 1024**2  # MB
+    epoch_time = end_time - start_time
+    
+    logger.info(f"[Train] Epoch {epoch+1}: Acc = {acc:.2f}% | Loss = {avg_loss:.4f} | Time = {epoch_time:.1f}s | Mem = {mem_used:.1f} MB")
 
     # ========== Evaluation ==========
     model.eval()
     viewpoint_learner.eval()
 
+    torch.cuda.reset_peak_memory_stats(device)
+    start_time = time.time()
+    
     val_correct, val_total, val_loss = 0, 0, 0.0
 
     for pcs, labels in tqdm(test_dataloader, total=len(test_dataloader), desc="Eval", leave=False):
@@ -137,10 +150,15 @@ for epoch in range(epochs):
         pred_labels = preds.argmax(dim=1)
         val_correct += pred_labels.eq(labels).sum().item()
         val_total += batch_size
-
+    
     val_acc = 100.0 * val_correct / val_total
     val_avg_loss = val_loss / val_total
-    logger.info(f"[Eval] Acc = {val_acc:.2f}%, Loss = {val_avg_loss:.4f}")
+
+    end_time = time.time()
+    mem_used = torch.cuda.max_memory_allocated(device) / 1024**2  # MB
+    epoch_time = end_time - start_time
+    
+    logger.info(f"[Eval] Acc = {val_acc:.2f}%, Loss = {val_avg_loss:.4f}" | Time = {epoch_time:.1f}s | Mem = {mem_used:.1f} MB")
 
     if val_acc > best_acc:
         best_acc = val_acc
