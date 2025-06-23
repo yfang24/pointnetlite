@@ -24,7 +24,7 @@ class PointGroupEncoder(nn.Module):
 
     def forward(self, x):
         B, G, N, _ = x.shape                                       # (B, G, N, 3)
-        x = point_groups.view(B * G, N, 3).transpose(2, 1)         # (BG, 3, N)
+        x = x.view(B * G, N, 3).transpose(2, 1)                    # (BG, 3, N)
         x = self.first_conv(x)                                     # (BG, 256, N)
         x_global = torch.max(x, dim=2, keepdim=True)[0]            # (BG, 256, 1)
         x = torch.cat([x_global.expand(-1, -1, N), x], dim=1)      # (BG, 512, N)
