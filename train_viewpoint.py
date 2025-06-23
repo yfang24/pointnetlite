@@ -97,7 +97,7 @@ for epoch in range(epochs):
         pcs = []
         pc_labels = []
     
-        for b in range(verts.size(0)):
+        for b in range(labels.size(0)):
             for v in range(num_views):
                 view_dir = cam_pos[b, v]  # (3,)
                 pts = render_mesh_torch(meshes[b], view_dir, num_points=num_points, device=device)
