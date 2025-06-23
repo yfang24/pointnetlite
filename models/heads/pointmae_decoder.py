@@ -30,17 +30,20 @@ class PointMAEDecoder(nn.Module):
 
         nn.init.trunc_normal_(self.mask_token, std=0.02)
 
-    def forward(self, x_vis, mask, neighborhood, center):
+    def forward(self, x):
         """
-        x_vis: (B, G_visible, C)        
-        mask: (B, G) boolean mask
-        neighborhood: (B, G, S, 3) - ground truth grouped points
-        center: (B, G, 3)
+        x: encoder output; a tuple of
+            x_vis: (B, G_visible, C)        
+            mask: (B, G) boolean mask
+            neighborhood: (B, G, S, 3) - ground truth grouped points
+            center: (B, G, 3)
         ------------------------------------------
         returns:
             - rebuilt_points: (B * G_masked, S, 3)
             - gt_points: (B * G_masked, S, 3)
         """
+        x_vis, mask, neighborhood, center = x
+        
         B, G, S, _ = neighborhood.shape
         C = self.trans_dim
 
