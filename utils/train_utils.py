@@ -204,13 +204,24 @@ def evaluate(model, dataloader, loss_fn, device, logger=None, rotation_vote=Fals
     return avg_loss, acc, mean_acc, epoch_time, mem_used, cm
 
 
-def run_training(rank, world_size, local_rank, config, config_path, device, use_ddp):
+def run_training(rank, world_size, local_rank, config, config_path, device, use_ddp, exp_name=None):
     seed = config.get("seed", 42)
     set_seed(seed)
 
-    # Timestamped experiment folder and logger (only once)
-    is_resumed = "experiments" in str(config_path)
+    # Setup experiment directory and logger
     if rank == 0:
+        if exp_name:  # resumed training
+            exp_dir = Path("experiments") / exp_name
+            is_resumed = True
+        else:
+            exp_time = datetime.now().strftime("%Y%m%d_%H%M%S")
+            exp_name = config_path.stem
+            exp_dir = Path("experiments") / f"{exp_name}_{exp_time}"
+            exp_dir.mkdir(parents=True, exist_ok=True)
+            shutil.copy(config_path, exp_dir / "config.yaml")
+            is_resumed = False
+
+        
         if is_resumed:
             exp_dir = config_path.parent
             logger = setup_logger(exp_dir / "log.txt")
