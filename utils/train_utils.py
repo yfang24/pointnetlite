@@ -12,7 +12,7 @@ from torch.utils.data import DataLoader, DistributedSampler
 from torch.nn.parallel import DistributedDataParallel
 from sklearn.metrics import confusion_matrix
 
-from utils.checkpoint_utils import save_checkpoint
+from utils.checkpoint_utils import save_checkpoint, load_checkpoint
 from utils.model_utils import get_model_profile
 from utils.log_utils import setup_logger
 from datasets.get_dataset import get_dataset
@@ -295,13 +295,7 @@ def run_training(rank, world_size, local_rank, config, config_path, device, use_
     if is_resumed:
         if not ckpt_path.exists():
             raise FileNotFoundError(f"Checkpoint not found: {ckpt_path}")
-        ckpt = torch.load(ckpt_path, map_location=device)
-        encoder.load_state_dict(ckpt["encoder"])
-        head.load_state_dict(ckpt["head"])
-        optimizer.load_state_dict(ckpt["optimizer"])
-        scheduler.load_state_dict(ckpt["scheduler"])
-        start_epoch = ckpt["epoch"] + 1
-        best_acc = ckpt.get("best_acc", 0.0)
+        start_epoch, best_acc = load_checkpoint(encoder, head, optimizer, scheduler, ckpt_path, device)
         if rank == 0:
             logger.info(f"Resumed from checkpoint at epoch {start_epoch}")
     
@@ -499,12 +493,7 @@ def run_pretraining(rank, world_size, local_rank, config, config_path, device, u
     if is_resumed:
         if not ckpt_path.exists():
             raise FileNotFoundError(f"Checkpoint not found: {ckpt_path}")
-        ckpt = torch.load(ckpt_path, map_location=device)
-        model.load_state_dict(ckpt["model"])
-        optimizer.load_state_dict(ckpt["optimizer"])
-        scheduler.load_state_dict(ckpt["scheduler"])
-        start_epoch = ckpt["epoch"] + 1
-        best_acc = ckpt.get("best_acc", 0.0)
+        start_epoch, best_acc = load_checkpoint(encoder, head, optimizer, scheduler, ckpt_path, device)
         if rank == 0:
             logger.info(f"Resumed from checkpoint at epoch {start_epoch}")
             
@@ -626,7 +615,7 @@ def run_finetuning(rank, world_size, local_rank, config, config_path, device, us
     if not ckpt_path.exists():
         raise FileNotFoundError(f"Checkpoint not found: {ckpt_path}")
     ckpt = torch.load(ckpt_path, map_location=device)
-    encoder.load_state_dict(ckpt["encoder"])
+    unwrap_model(encoder).load_state_dict(ckpt["encoder"])
 
     if rank == 0:
         logger.info(f"Resumed from checkpoint at epoch {start_epoch}")
