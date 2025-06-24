@@ -41,7 +41,7 @@ def ball_group(points, centers, radius, nsample):  # nsample=group_size
 
     neighborhoods = group_points(points, idx)                     # (B, G, S, 3)
     neighborhoods = neighborhoods - centers.unsqueeze(2)          # center relative
-    return neighborhoods, centers
+    return neighborhoods
 
 #=====
 #pointmae: fps-knn-group
@@ -83,7 +83,7 @@ def knn_group(points, centers, k):
 
     neighborhoods = group_points(points, idx)      # (B, G, k, 3)
     neighborhoods = neighborhoods - centers.unsqueeze(2)
-    return neighborhoods, centers
+    return neighborhoods
 
 def group_points(points, idx):
     '''
