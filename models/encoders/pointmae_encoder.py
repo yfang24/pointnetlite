@@ -34,30 +34,32 @@ class PointGroupEncoder(nn.Module):
         
         
 class PointMAEEncoder(nn.Module):
-    def __init__(self, embed_dim=384, trans_dim=384, depth=12, drop_path=0.1,
-                 num_heads=6, mask_ratio=0.6, mask_type='rand', group_size=32, num_group=64):
+    def __init__(self, embed_dim=384, depth=12, drop_path=0.1, num_heads=6, 
+                 mask_ratio=0.6, mask_type='rand', group_size=32, num_group=64):
         super().__init__()        
         self.group_size = group_size
         self.num_group = num_group
         self.mask_ratio = mask_ratio
-        self.trans_dim = trans_dim
+        self.embed_dim = embed_dim
         self.mask_type = mask_type
         
         self.encoder = PointGroupEncoder(embed_dim=embed_dim)
+                     
         self.pos_embed = nn.Sequential(
             nn.Linear(3, 128),
             nn.GELU(),
-            nn.Linear(128, trans_dim),
+            nn.Linear(128, embed_dim),
         )
 
         dpr = [x.item() for x in torch.linspace(0, drop_path, depth)]
         self.blocks = TransformerEncoder(
-            embed_dim=trans_dim,
+            embed_dim=embed_dim,
             depth=depth,
             drop_path=dpr,
             num_heads=num_heads,
-        )
-        self.norm = nn.LayerNorm(trans_dim)
+        )                     
+        self.norm = nn.LayerNorm(embed_dim)
+                     
         self.apply(self._init_weights)
 
     def _init_weights(self, m):
@@ -114,8 +116,8 @@ class PointMAEEncoder(nn.Module):
         B, G, D = group_tokens.shape
         x_vis = group_tokens[~mask].reshape(B, -1, D)            # (B, G_visible, D)
 
-        pos = self.pos_embed(center[~mask].reshape(B, -1, 3))    # (B, G_visible, trans_dim)
-        x_vis = self.blocks(x_vis, pos)                          # (B, G_visible, trans_dim)
+        pos = self.pos_embed(center[~mask].reshape(B, -1, 3))    # (B, G_visible, D)
+        x_vis = self.blocks(x_vis, pos)                          # (B, G_visible, D)
         x_vis = self.norm(x_vis)
 
         if noaug:
