@@ -36,7 +36,7 @@ class MultiHeadAttention(nn.Module):
         qkv = self.qkv(x).reshape(B, N, 3, self.num_heads, D // self.num_heads).permute(2, 0, 3, 1, 4)
         q, k, v = qkv[0], qkv[1], qkv[2]                          # (B, H, N, D_head=D//H)
         attn = (q @ k.transpose(-2, -1)) * self.scale             # (B, H, N, N)
-        attn = self.attn_drop(attn.softmax(embed_dim=-1))
+        attn = self.attn_drop(attn.softmax(dim=-1))
         x = (attn @ v).transpose(1, 2).reshape(B, N, D)           # (B, H, N, D_head) -> (B, N, D)
         return self.proj_drop(self.proj(x))                       # (B, N, D)
 
