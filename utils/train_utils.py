@@ -210,20 +210,20 @@ def run_training(rank, world_size, local_rank, config, config_path, device, use_
 
     # Setup experiment directory and logger
     is_resumed = "experiments" in str(config_path)
-    if is_resumed:
-        exp_dir = config_path.parent
-        logger = setup_logger(exp_dir / "log.txt")
-        logger.info(f"\n[Resume] Continuing training")
-    else:
-        exp_time = datetime.now().strftime("%Y%m%d_%H%M%S")
-        exp_name = config_path.stem
-        exp_dir = Path("experiments") / f"{exp_name}_{exp_time}"
-        exp_dir.mkdir(parents=True, exist_ok=True)
-        shutil.copy(config_path, exp_dir / "config.yaml")
-        
     if rank == 0:
-        logger = setup_logger(exp_dir / "log.txt")
-        logger.info(f"Experiment: {exp_name}")
+        if is_resumed:  # config_path = code/experiments/exp_name/config.yaml
+            exp_dir = config_path.parent  
+            logger = setup_logger(exp_dir / "log.txt")
+            logger.info(f"\n[Resume] Continuing training")
+        else:  # config_path = code/configs/config.yaml
+            exp_time = datetime.now().strftime("%Y%m%d_%H%M%S")
+            exp_name = config_path.stem  # config_name
+            exp_dir = config_path.parents[1] / "experiments" / f"{exp_name}_{exp_time}"
+            exp_dir.mkdir(parents=True, exist_ok=True)
+            shutil.copy(config_path, exp_dir / "config.yaml")
+            
+            logger = setup_logger(exp_dir / "log.txt")
+            logger.info(f"Experiment: {exp_name}")
     else:
         logger = None
 
@@ -275,8 +275,8 @@ def run_training(rank, world_size, local_rank, config, config_path, device, use_
     optimizer = get_optimizer(config, named_params)
     scheduler = get_scheduler(config, optimizer)
 
-    # Training Loop
-    epochs = config.get("epochs", 200)
+    # Resume logic
+    start_epoch = 0
     
     best_acc = 0.0
     best_epoch = -1
@@ -286,6 +286,21 @@ def run_training(rank, world_size, local_rank, config, config_path, device, use_
     best_window_mean = -1
     converged_epoch = -1
     epoch_times, epoch_mems = [], []
+
+    ckpt_path = exp_dir / "checkpoint_last.pth"
+    if is_resumed and ckpt_path.exists():
+        ckpt = torch.load(ckpt_path, map_location=device)
+        model.load_state_dict(ckpt["model"])
+        optimizer.load_state_dict(ckpt["optimizer"])
+        scheduler.load_state_dict(ckpt["scheduler"])
+        start_epoch = ckpt["epoch"] + 1
+        best_acc = ckpt.get("best_acc", 0.0)
+        if rank == 0:
+            logger.info(f"Resumed from checkpoint at epoch {start_epoch}")
+
+    
+    # Training Loop
+    epochs = config.get("epochs", 200)
 
     for epoch in range(epochs):
         if train_sampler is not None:
