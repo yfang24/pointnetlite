@@ -204,7 +204,7 @@ def evaluate(model, dataloader, loss_fn, device, logger=None, rotation_vote=Fals
     return avg_loss, acc, mean_acc, epoch_time, mem_used, cm
 
 
-def run_training(rank, world_size, local_rank, config, config_path, device, use_ddp, exp_name=None):
+def run_training(rank, world_size, local_rank, config, config_path, device, use_ddp, exp_name=None, ckpt_type="best"):
     seed = config.get("seed", 42)
     set_seed(seed)
 
@@ -287,7 +287,7 @@ def run_training(rank, world_size, local_rank, config, config_path, device, use_
     converged_epoch = -1
     epoch_times, epoch_mems = [], []
 
-    ckpt_path = exp_dir / "checkpoint_last.pth"
+    ckpt_path = exp_dir / f"checkpoint_{ckpt_type}.pth"
     if is_resumed and ckpt_path.exists():
         ckpt = torch.load(ckpt_path, map_location=device)
         model.load_state_dict(ckpt["model"])
