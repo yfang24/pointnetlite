@@ -435,7 +435,7 @@ def random_drop_out(points, max_dropout_ratio=0.875):
         dropout_ratio = torch.rand(1, device=points.device).item() * max_dropout_ratio
         mask = torch.rand(points.shape[0], device=points.device) <= dropout_ratio
         if mask.any():
-            points[mask] = points[0]
+            points[mask] = points[0].clone()
     return points
 
 def random_scale(points, scale_low=0.8, scale_high=1.25):
