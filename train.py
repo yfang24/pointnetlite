@@ -12,19 +12,20 @@ def main():
     parser = argparse.ArgumentParser(description="Train/pretrain/finetune model from config and/or experiment.")
 
     # train/pretrain: -cfg
-    # resumed train/pretrain/fintune: -exp
-    # finetune: -cfg and -exp
+    # resumed train/pretrain/fintune: -exp [-ckpt]
+    # finetune: -cfg -exp [-ckpt]
     
     parser.add_argument("-cfg", "--config_name", type=str, help="Name of config file in /code/configs/")
     parser.add_argument("-exp", "--exp_name", type=str, help="Name of experiment folder under /code/experiments/")
+    parser.add_argument("-ckpt", "--ckpt_type", type=str, choices=["best", "last"],
+                        default="best", help="Which checkpoint to use when resuming: 'best' (default) or 'last'")
     
     parser = argparse.ArgumentParser(description="Train model from config or experiment.")
 
     args = parser.parse_args()
-    
-    root_dir = Path(__file__).resolve().parent
 
     # Resolve config path
+    root_dir = Path(__file__).resolve().parent    
     if args.config_name:
         config_path = root_dir / "configs" / (args.config_name if args.config_name.endswith(".yaml") else args.config_name + ".yaml")
     elif args.exp_name:  # resumed training (if only exp name is provided--no config; it is finetune if config is also provided)
@@ -33,6 +34,8 @@ def main():
         raise ValueError("At least one of --config_name or --exp_name must be provided.")        
     
     config = load_config(config_path)
+
+    # Determine mode
     use_ddp = config.get("ddp", False)
     is_pretrain = config.get("pretrain", False)
 
@@ -63,7 +66,7 @@ def main():
 
         try:
             run_func(rank, world_size, local_rank, config, config_path, 
-                     device, use_ddp, exp_name=args.exp_name)
+                     device, use_ddp, exp_name=args.exp_name, ckpt_type=args.ckpt_type)
         finally:
             if dist.is_initialized():
                 dist.destroy_process_group()
@@ -71,7 +74,7 @@ def main():
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         
         run_func(rank=0, world_size=1, local_rank=0, config=config, config_path=config_path, 
-                 device=device, use_ddp=use_ddp, exp_name=args.exp_name)
+                 device=device, use_ddp=use_ddp, exp_name=args.exp_name, ckpt_type=args.ckpt_type)
 
 if __name__ == "__main__":
     main()
