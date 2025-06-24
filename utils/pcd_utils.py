@@ -341,8 +341,6 @@ def rotate_xyz(points, rotation_angles):
             [np.sin(theta_z), np.cos(theta_z), 0],
             [0, 0, 1]
         ])
-        R = np.dot(R_z, np.dot(R_y, R_x))
-        return np.dot(points, R.T)
     else:
         device = points.device
         
@@ -365,7 +363,7 @@ def rotate_xyz(points, rotation_angles):
             [torch.sin(theta_z), torch.cos(theta_z), 0],
             [0, 0, 1]
         ], device=device)
-    R = Rz @ Ry @ Rx
+    R = R_z @ R_y @ R_x
     return points @ R.T
 
 def generate_viewpoints(num_views, radius=2.0):
