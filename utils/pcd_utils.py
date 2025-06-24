@@ -14,8 +14,9 @@ def normalize_pcd_tensor(points):
     
 #=====
 #pointnet++: fps-ball-group
+# G: num_group; S: group_size
 #=====
-def ball_query(centers, points, radius, nsample):
+def ball_group(centers, points, radius, nsample):  # nsample=group_size
     B, G, _ = centers.shape
     N = points.shape[1]
 
@@ -37,26 +38,15 @@ def ball_query(centers, points, radius, nsample):
                 # pad by repeating first neighbor
                 pad = valid[0].repeat(nsample - valid.numel())
                 idx[b, g] = torch.cat([valid, pad], dim=0)
-    return idx
 
-def sample_and_group_ball(points, num_group, group_size, radius):
-    '''
-    points: (B, N, 3)
-    returns:
-      - neighborhoods: (B, G, M, 3)
-      - centers: (B, G, 3)
-    '''
-    centers = farthest_point_sample_gpu_batch(points, num_group)  # (B, G, 3)
-    idx = ball_query(centers, points, radius, group_size)         # (B, G, M)
-    neighborhoods = group_points(points, idx)                     # (B, G, M, 3)
+    neighborhoods = group_points(points, idx)                     # (B, G, S, 3)
     neighborhoods = neighborhoods - centers.unsqueeze(2)          # center relative
     return neighborhoods, centers
-
 
 #=====
 #pointmae: fps-knn-group
 #=====
-def farthest_point_sample_gpu_batch(points, n):
+def fps(points, n):
     '''
     points: (B, N, 3) torch.Tensor
     return: (B, n, 3)
@@ -84,12 +74,16 @@ def knn_group(points, centers, k):
     '''
     points: (B, N, 3)
     centers: (B, G, 3)
-    return: (B, G, k, 3)
+    returns:
+      - neighborhoods: (B, G, k, 3)
+      - centers: (B, G, 3)
     '''
     dists = torch.cdist(centers, points)  # (B, G, N)
     idx = dists.topk(k, dim=-1, largest=False)[1]  # (B, G, k)
-    return idx
 
+    neighborhoods = group_points(points, idx)      # (B, G, k, 3)
+    neighborhoods = neighborhoods - centers.unsqueeze(2)
+    return neighborhoods, centers
 
 def group_points(points, idx):
     '''
@@ -106,18 +100,6 @@ def group_points(points, idx):
     grouped = points.reshape(B * N, C)[idx, :].view(B, G, K, C)
     return grouped
 
-def sample_and_group(points, num_group, group_size):
-    '''
-    points: (B, N, 3)
-    returns:
-      - neighborhoods: (B, G, M, 3)
-      - centers: (B, G, 3)
-    '''
-    centers = farthest_point_sample_gpu_batch(points, num_group)  # (B, G, 3)
-    idx = knn_gather(points, centers, group_size)  # (B, G, M)
-    neighborhoods = group_points(points, idx)      # (B, G, M, 3)
-    neighborhoods = neighborhoods - centers.unsqueeze(2)
-    return neighborhoods, centers
 
 #=====
 #my funcs
