@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+from timm.models.layers import trunc_normal_
 
 class PointMAEClsHead(nn.Module):
     def __init__(self, embed_dim=384, out_dim=40):
