@@ -297,12 +297,11 @@ def run_training(rank, world_size, local_rank, config, config_path, device, use_
         best_acc = ckpt.get("best_acc", 0.0)
         if rank == 0:
             logger.info(f"Resumed from checkpoint at epoch {start_epoch}")
-
     
     # Training Loop
     epochs = config.get("epochs", 200)
 
-    for epoch in range(epochs):
+    for epoch in range(start_epoch, epochs):
         if train_sampler is not None:
             train_sampler.set_epoch(epoch)
 
@@ -310,10 +309,10 @@ def run_training(rank, world_size, local_rank, config, config_path, device, use_
             logger.info(f"Epoch {epoch+1}/{epochs}")
 
         train_loss, train_acc, train_time, train_mem = train_one_epoch(
-            model, train_loader, loss_fn, optimizer, scheduler, device, logger if rank == 0 else None
+            model, train_loader, loss_fn, optimizer, scheduler, device, logger
         )
         test_loss, test_acc, test_ma, test_time, test_mem, _ = evaluate(
-            model, test_loader, loss_fn, device, logger if rank == 0 else None, rotation_vote, num_votes
+            model, test_loader, loss_fn, device, logger, rotation_vote, num_votes
         )
 
         if rank == 0:
