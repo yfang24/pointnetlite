@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 
 class PointMAEClsHead(nn.Module):
-    def __init__(self, trans_dim=384, cls_dim=40):
+    def __init__(self, trans_dim=384, out_dim=40):
         super().__init__()
         self.cls_token = nn.Parameter(torch.zeros(1, 1, trans_dim))
         self.cls_pos = nn.Parameter(torch.randn(1, 1, trans_dim))
@@ -16,7 +16,7 @@ class PointMAEClsHead(nn.Module):
             nn.BatchNorm1d(256),
             nn.ReLU(inplace=True),
             nn.Dropout(0.5),
-            nn.Linear(256, cls_dim)
+            nn.Linear(256, out_dim)
         )
 
         nn.init.trunc_normal_(self.cls_token, std=0.02)
@@ -55,4 +55,4 @@ class PointMAEClsHead(nn.Module):
         global_feature = x[:, 1:].max(dim=1)[0]     # (B, trans_dim); max over groups(input group token x (B, G, trans_dim) + their pos (zeros))
         feat = torch.cat([cls_feature, global_feature], dim=1)  # (B, 2trans_dim)
 
-        return self.cls_head(feat)                  # (B, cls_dim)
+        return self.cls_head(feat)                  # (B, out_dim)
