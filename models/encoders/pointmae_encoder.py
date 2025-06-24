@@ -35,13 +35,15 @@ class PointGroupEncoder(nn.Module):
         
 class PointMAEEncoder(nn.Module):
     def __init__(self, embed_dim=384, depth=12, drop_path=0.1, num_heads=6, 
-                 mask_ratio=0.6, mask_type='rand', group_size=32, num_group=64):
+                 mask_ratio=0.6, mask_type='rand', group_size=32, num_group=64, 
+                 noaug=False):  # noaug: whether do masking--False for pretrain, True for finetune
         super().__init__()        
         self.group_size = group_size
         self.num_group = num_group
         self.mask_ratio = mask_ratio
         self.embed_dim = embed_dim
         self.mask_type = mask_type
+        self.noaug = noaug
         
         self.encoder = PointGroupEncoder(embed_dim=embed_dim)
                      
@@ -104,13 +106,13 @@ class PointMAEEncoder(nn.Module):
             mask[i, sorted_idx[:num_mask]] = True
         return mask  # (B, G)
    
-    def forward(self, point_cloud, noaug=False): # (B, N, 3); noaug: whether do masking--False for pretrain, True for finetune
+    def forward(self, point_cloud): # (B, N, 3)
         neighborhood, center = sample_and_group(point_cloud, self.num_group, self.group_size)  # (B, G, S, 3), (B, G, 3)
 
         if self.mask_type == 'rand':
-            mask = self._mask_center_rand(center, noaug)
+            mask = self._mask_center_rand(center, self.noaug)
         else:
-            mask = self._mask_center_block(center, noaug)
+            mask = self._mask_center_block(center, self.noaug)
 
         group_tokens = self.encoder(neighborhood)                # (B, G, D)
         B, G, D = group_tokens.shape
