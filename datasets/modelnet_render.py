@@ -13,13 +13,13 @@ import utils.pcd_utils as pcd_utils
 from configs.load_class_map import load_class_map
 
 class ModelNetRender(Dataset):
-    def __init__(self, root_dir, class_map, split='train', num_points=1024, num_views=3, single_view=False, cache_dir=None, use_cache=True, device=torch.device('cuda')):
+    def __init__(self, root_dir, class_map, split='train', num_points=1024, num_views=3, single_view=False, cache_dir=None, use_cache=True, device=None):
         self.root_dir = root_dir
         self.split = split
         self.num_points = num_points
         self.num_views = num_views
         self.single_view = single_view
-        self.device = device
+        self.device = device or torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.class_map = class_map if isinstance(class_map, dict) else load_class_map(class_map)
         
         self.viewpoints = self._get_viewpoints(self.num_views)
@@ -35,8 +35,8 @@ class ModelNetRender(Dataset):
             print(f"[ModelNetRender] Loading cached data from {self.cache_file}")
             with open(self.cache_file, 'rb') as f:
                 cached = pickle.load(f)
-                self.data = cached['data'].to(self.device)
-                self.labels = cached['labels'].to(self.device)
+                self.data = cached['data']
+                self.labels = cached['labels']
         else:
             print("[ModelNetRender] Processing and rendering data...")
             self.data, self.labels = self._process_and_render()
@@ -81,12 +81,12 @@ class ModelNetRender(Dataset):
                     mesh = mesh_utils.normalize_mesh(mesh)
                     verts_np, faces_np = np.asarray(mesh.vertices), np.asarray(mesh.triangles)
                     verts_np[:, [0, 2]] *= -1
-                    verts = torch.tensor(verts_np, dtype=torch.float32)
-                    faces = torch.tensor(faces_np, dtype=torch.int64)
-                    mesh_torch = Meshes(verts=[verts], faces=[faces]).to(self.device)
+                    verts = torch.tensor(verts_np, dtype=torch.float32, device=self.device)
+                    faces = torch.tensor(faces_np, dtype=torch.int64, device=self.device)
+                    mesh_torch = Meshes(verts=[verts], faces=[faces])
 
-                    for camera_pos in self.viewpoints:
-                        points = mesh_utils.render_mesh_torch(mesh_torch, camera_pos.to(self.device), num_points=self.num_points, device=self.device)
+                    for camera_pos in self.viewpoints.to(self.device):
+                        points = mesh_utils.render_mesh_torch(mesh_torch, camera_pos, num_points=self.num_points, device=self.device)
                         
                         points[:, [0, 2]] *= -1
                         center = points.mean(dim=0, keepdim=True)
@@ -97,8 +97,8 @@ class ModelNetRender(Dataset):
                         data.append(points)
                         labels.append(label)
 
-        return torch.stack(data).float().to(self.device), \
-               torch.tensor(labels).long().to(self.device)
+        return torch.stack(data, device=self.device).float(), /
+                torch.tensor(labels, device=self.device).long()
 
     def _get_viewpoints(self, num_views):
         if num_views == 3:
