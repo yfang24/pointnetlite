@@ -13,7 +13,7 @@ from torch.nn.parallel import DistributedDataParallel
 from sklearn.metrics import confusion_matrix
 
 from utils.checkpoint_utils import save_checkpoint, load_checkpoint
-from utils.model_utils import get_model_profile, unwrap_model
+from utils.model_utils import get_model_profile
 from utils.log_utils import setup_logger
 from datasets.get_dataset import get_dataset
 from models.encoders.get_encoder import get_encoder
@@ -295,7 +295,7 @@ def run_training(rank, world_size, local_rank, config, config_path, device, use_
     if is_resumed:
         if not ckpt_path.exists():
             raise FileNotFoundError(f"Checkpoint not found: {ckpt_path}")
-        start_epoch, best_acc = load_checkpoint(encoder, head, optimizer, scheduler, ckpt_path, device)
+        start_epoch, best_acc = load_checkpoint(ckpt_path, device, encoder, head, optimizer, scheduler)
         if rank == 0:
             logger.info(f"Resumed from checkpoint at epoch {start_epoch}")
     
@@ -493,7 +493,7 @@ def run_pretraining(rank, world_size, local_rank, config, config_path, device, u
     if is_resumed:
         if not ckpt_path.exists():
             raise FileNotFoundError(f"Checkpoint not found: {ckpt_path}")
-        start_epoch, best_acc = load_checkpoint(encoder, head, optimizer, scheduler, ckpt_path, device)
+        start_epoch, best_acc = load_checkpoint(ckpt_path, device, encoder, head, optimizer, scheduler)
         if rank == 0:
             logger.info(f"Resumed from checkpoint at epoch {start_epoch}")
             
@@ -599,9 +599,13 @@ def run_finetuning(rank, world_size, local_rank, config, config_path, device, us
     optimizer = get_optimizer(config, named_params)
     scheduler = get_scheduler(config, optimizer)
 
-    # Resume logic
-    start_epoch = 0
+    # Loading pretrained model   
+    ckpt_path = ckpt_dir / f"checkpoint_{ckpt_type}.pth"
+    if not ckpt_path.exists():
+        raise FileNotFoundError(f"Checkpoint not found: {ckpt_path}")
+    _ = load_checkpoint(ckpt_path, device, encoder=encoder)
     
+    # Training Loop
     best_acc = 0.0
     best_epoch = -1
     
@@ -610,20 +614,10 @@ def run_finetuning(rank, world_size, local_rank, config, config_path, device, us
     best_window_mean = -1
     converged_epoch = -1
     epoch_times, epoch_mems = [], []
-
-    ckpt_path = ckpt_dir / f"checkpoint_{ckpt_type}.pth"
-    if not ckpt_path.exists():
-        raise FileNotFoundError(f"Checkpoint not found: {ckpt_path}")
-    ckpt = torch.load(ckpt_path, map_location=device)
-    unwrap_model(encoder).load_state_dict(ckpt["encoder"])
-
-    if rank == 0:
-        logger.info(f"Resumed from checkpoint at epoch {start_epoch}")
     
-    # Training Loop
     epochs = config.get("epochs", 200)
 
-    for epoch in range(start_epoch, epochs):
+    for epoch in range(epochs):
         if train_sampler is not None:
             train_sampler.set_epoch(epoch)
 
@@ -663,4 +657,4 @@ def run_finetuning(rank, world_size, local_rank, config, config_path, device, us
         save_checkpoint(encoder, head, optimizer, scheduler, epoch, best_acc, exp_dir, is_best=False)
         logger.info(f"Best Test Acc: {best_acc:.2f}% at Epoch {best_epoch}")
         logger.info(f"[Converged] Epoch: {converged_epoch} | Mean OA: {best_window_mean:.2f}% | Time: {converged_time:.2f}s | Mem: {converged_mem:.1f}MB")
-        logger.info("Training complete.")
+        logger.info("Finetuning complete.")
