@@ -5,7 +5,7 @@ from pathlib import Path
 import torch.multiprocessing as mp
 import torch.distributed as dist
 
-from utils.train_utils import run_training, run_pretraining
+from utils.train_utils import run_training, run_pretraining, run_finetuning
 from configs.load_config import load_config
 
 def main():
