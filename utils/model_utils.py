@@ -21,3 +21,6 @@ def freeze_model(model):
     model.eval()
     for param in model.parameters():
         param.requires_grad = False
+
+def unwrap_model(model):
+    return model.module if isinstance(model, torch.nn.parallel.DistributedDataParallel) else model
