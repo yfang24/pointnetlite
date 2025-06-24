@@ -325,45 +325,28 @@ def rotate_xyz(points, rotation_angles):
     Z-axis: Points out of the screen (from the back) towards the viewer.
     '''
     theta_x, theta_y, theta_z = rotation_angles
-    if isinstance(points, np.ndarray):        
-        R_x = np.array([
-            [1, 0, 0],
-            [0, np.cos(theta_x), -np.sin(theta_x)],
-            [0, np.sin(theta_x), np.cos(theta_x)]
-        ])
-        R_y = np.array([
-            [np.cos(theta_y), 0, np.sin(theta_y)],
-            [0, 1, 0],
-            [-np.sin(theta_y), 0, np.cos(theta_y)]
-        ])
-        R_z = np.array([
-            [np.cos(theta_z), -np.sin(theta_z), 0],
-            [np.sin(theta_z), np.cos(theta_z), 0],
-            [0, 0, 1]
-        ])
-    else:
-        device = points.device
-        
-        theta_x = torch.tensor(theta_x, device=device)
-        theta_y = torch.tensor(theta_y, device=device)
-        theta_z = torch.tensor(theta_z, device=device)
-        
-        R_x = torch.tensor([
-            [1, 0, 0],
-            [0, torch.cos(theta_x), -torch.sin(theta_x)],
-            [0, torch.sin(theta_x), torch.cos(theta_x)]
-        ], device=device)
-        R_y = torch.tensor([
-            [torch.cos(theta_y), 0, torch.sin(theta_y)],
-            [0, 1, 0],
-            [-torch.sin(theta_y), 0, torch.cos(theta_y)]
-        ], device=device)
-        R_z = torch.tensor([
-            [torch.cos(theta_z), -torch.sin(theta_z), 0],
-            [torch.sin(theta_z), torch.cos(theta_z), 0],
-            [0, 0, 1]
-        ], device=device)
+      
+    R_x = np.array([
+        [1, 0, 0],
+        [0, np.cos(theta_x), -np.sin(theta_x)],
+        [0, np.sin(theta_x), np.cos(theta_x)]
+    ])
+    R_y = np.array([
+        [np.cos(theta_y), 0, np.sin(theta_y)],
+        [0, 1, 0],
+        [-np.sin(theta_y), 0, np.cos(theta_y)]
+    ])
+    R_z = np.array([
+        [np.cos(theta_z), -np.sin(theta_z), 0],
+        [np.sin(theta_z), np.cos(theta_z), 0],
+        [0, 0, 1]
+    ])
+
     R = R_z @ R_y @ R_x
+
+    if isinstance(points, torch.Tensor):
+        R = torch.tensor(R, dtype=points.dtype, device=points.device)
+
     return points @ R.T
 
 def generate_viewpoints(num_views, radius=2.0):
