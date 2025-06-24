@@ -347,6 +347,7 @@ def run_training(rank, world_size, local_rank, config, config_path, device, use_
         
 #=====================
 # pretrain
+# diff from train: no acc; only loss; using val_set to eval
 #=====================
 def pretrain_one_epoch(epoch, encoder, head, dataloader, loss_fn, optimizer, scheduler, device, logger=None):
     encoder.train()
