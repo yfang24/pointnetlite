@@ -209,35 +209,23 @@ def run_training(rank, world_size, local_rank, config, config_path, device, use_
     set_seed(seed)
 
     # Setup experiment directory and logger
-    if rank == 0:
-        if exp_name:  # resumed training
-            exp_dir = Path("experiments") / exp_name
-            is_resumed = True
-        else:
-            exp_time = datetime.now().strftime("%Y%m%d_%H%M%S")
-            exp_name = config_path.stem
-            exp_dir = Path("experiments") / f"{exp_name}_{exp_time}"
-            exp_dir.mkdir(parents=True, exist_ok=True)
-            shutil.copy(config_path, exp_dir / "config.yaml")
-            is_resumed = False
-
+    is_resumed = "experiments" in str(config_path)
+    if is_resumed:
+        exp_dir = config_path.parent
+        logger = setup_logger(exp_dir / "log.txt")
+        logger.info(f"\n[Resume] Continuing training")
+    else:
+        exp_time = datetime.now().strftime("%Y%m%d_%H%M%S")
+        exp_name = config_path.stem
+        exp_dir = Path("experiments") / f"{exp_name}_{exp_time}"
+        exp_dir.mkdir(parents=True, exist_ok=True)
+        shutil.copy(config_path, exp_dir / "config.yaml")
         
-        if is_resumed:
-            exp_dir = config_path.parent
-            logger = setup_logger(exp_dir / "log.txt")
-            logger.info(f"\n[Resume] Continuing training")
-        else:
-            exp_time = datetime.now().strftime("%Y%m%d_%H%M%S")
-            exp_name = config_path.stem
-            exp_dir = Path("experiments") / f"{exp_name}_{exp_time}"
-            exp_dir.mkdir(parents=True, exist_ok=True)
-            shutil.copy(config_path, exp_dir / "config.yaml")
-            
-            logger = setup_logger(exp_dir / "log.txt")
-            logger.info(f"Experiment: {exp_name}")
+    if rank == 0:
+        logger = setup_logger(exp_dir / "log.txt")
+        logger.info(f"Experiment: {exp_name}")
     else:
         logger = None
-        exp_dir = None
 
     # Dataset
     batch_size = config.get("batch_size", 32)
