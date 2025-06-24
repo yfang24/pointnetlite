@@ -292,7 +292,9 @@ def run_training(rank, world_size, local_rank, config, config_path, device, use_
     epoch_times, epoch_mems = [], []
 
     ckpt_path = exp_dir / f"checkpoint_{ckpt_type}.pth"
-    if is_resumed and ckpt_path.exists():
+    if is_resumed:
+        if not ckpt_path.exists():
+            raise FileNotFoundError(f"Checkpoint not found: {ckpt_path}")
         ckpt = torch.load(ckpt_path, map_location=device)
         encoder.load_state_dict(ckpt["encoder"])
         head.load_state_dict(ckpt["head"])
@@ -494,7 +496,9 @@ def run_pretraining(rank, world_size, local_rank, config, config_path, device, u
     epoch_times, epoch_mems = [], []
 
     ckpt_path = exp_dir / f"checkpoint_{ckpt_type}.pth"
-    if is_resumed and ckpt_path.exists():
+    if is_resumed:
+        if not ckpt_path.exists():
+            raise FileNotFoundError(f"Checkpoint not found: {ckpt_path}")
         ckpt = torch.load(ckpt_path, map_location=device)
         model.load_state_dict(ckpt["model"])
         optimizer.load_state_dict(ckpt["optimizer"])
@@ -539,35 +543,32 @@ def run_pretraining(rank, world_size, local_rank, config, config_path, device, u
 
 
 #=====================
-#finetune
+# finetune
 #=====================
-def run_finetuning(rank, world_size, local_rank, config, config_path, device, use_ddp, exp_name=None, ckpt_type="best"):
+def run_finetuning(rank, world_size, local_rank, config, config_path, device, use_ddp, exp_name, ckpt_type="best"):
     seed = config.get("seed", 42)
     set_seed(seed)
 
-    is_resumed = "experiments" in str(config_path)
-    if rank == 0:
-        if is_resumed:
-            exp_dir = config_path.parent
-            logger = setup_logger(exp_dir / "log.txt")
-            logger.info(f"\n[Finetune] Training")
-        else:
-            exp_time = datetime.now().strftime("%Y%m%d_%H%M%S")
-            exp_name = config_path.stem
-            exp_dir = Path("experiments") / f"{exp_name}_{exp_time}"
-            exp_dir.mkdir(parents=True, exist_ok=True)
-            shutil.copy(config_path, exp_dir / "config.yaml")
-            logger = setup_logger(exp_dir / "log.txt")
-            logger.info(f"Experiment: {exp_name}")
+    # Setup experiment directory and logger
+    # config_path = code/configs/config.yaml
+    ckpt_dir = config_path.parents[1] / "experiments" / exp_name
+    if rank == 0:        
+        exp_time = datetime.now().strftime("%Y%m%d_%H%M%S")
+        exp_dir = config_path.parents[1] / "experiments" / f"{config_path.stem}_{exp_time}"
+        exp_dir.mkdir(parents=True, exist_ok=True)
+        shutil.copy(config_path, exp_dir / "config.yaml")
+
+        logger = setup_logger(exp_dir / "log.txt")
+        logger.info(f"\n[Finetune] Loading model from {exp_name} using checkpoint_{ckpt_type}")
     else:
         logger = None
-        exp_dir = None
 
     # Dataset
-    batch_size = config.get("batch_size", 128)
+    batch_size = config.get("batch_size", 32)
     num_workers = config.get("num_workers", 4)
+
     train_set = get_dataset(config, "train_dataset")
-    val_set = get_dataset(config, "val_dataset")
+    test_set, rotation_vote, num_votes = get_dataset(config, "test_dataset")
 
     if use_ddp:
         train_sampler = DistributedSampler(train_set, num_replicas=world_size, rank=rank, shuffle=True)
@@ -576,67 +577,101 @@ def run_finetuning(rank, world_size, local_rank, config, config_path, device, us
         train_sampler = None
         shuffle = True
 
-    train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=shuffle, sampler=train_sampler,
-                              num_workers=num_workers, drop_last=True)
-    val_loader = DataLoader(val_set, batch_size=batch_size, shuffle=False, num_workers=num_workers)
+    train_loader = DataLoader(
+        train_set, batch_size=batch_size, shuffle=shuffle, sampler=train_sampler,
+        num_workers=num_workers, drop_last=True
+    )
+    test_loader = DataLoader(
+        test_set, batch_size=batch_size, shuffle=False,
+        num_workers=num_workers
+    )
 
     # Model
     encoder = get_encoder(config).to(device)
-    head = get_head(config).to(device)  # Here head is decoder for pretraining
+    head = get_head(config).to(device)
     model = torch.nn.Sequential(encoder, head).to(device)
     
     if use_ddp:
-        model = DistributedDataParallel(model, device_ids=[local_rank])
-
+        encoder = DistributedDataParallel(encoder, device_ids=[local_rank])
+        head = DistributedDataParallel(head, device_ids=[local_rank])
+        
     # Model Profile
     if rank == 0:
         num_points = getattr(train_set, "num_points", train_set[0][0].shape[0])
         dummy_input = torch.rand(1, num_points, 3).float().to(device)
-
-        profiled_model = model.module if isinstance(model, DistributedDataParallel) else model
-        flops, params = get_model_profile(profiled_model, dummy_input)
-        logger.info(f"Model Params: {params:,} | FLOPs: {flops / 1e6:.2f} MFLOPs")
+        flops, params = get_model_profile(model, dummy_input)    
+        logger.info(f"Model Params: {params:,} | FLOPs: {flops / 1e6:.2f} MFLOPs")      
 
     # Loss
     loss_fn = get_loss(config)
-
+    
     # Optimizer + Scheduler
     named_params = list(model.named_parameters())
     optimizer = get_optimizer(config, named_params)
     scheduler = get_scheduler(config, optimizer)
 
-    # Training loop
-    epochs = config.get("epochs", 300)
-    best_loss = float("inf")
+    # Resume logic
+    start_epoch = 0
+    
+    best_acc = 0.0
     best_epoch = -1
+    
+    window_size = 5
+    acc_window = []
+    best_window_mean = -1
+    converged_epoch = -1
     epoch_times, epoch_mems = [], []
 
-    for epoch in range(epochs):
+    ckpt_path = ckpt_dir / f"checkpoint_{ckpt_type}.pth"
+    if not ckpt_path.exists():
+        raise FileNotFoundError(f"Checkpoint not found: {ckpt_path}")
+    ckpt = torch.load(ckpt_path, map_location=device)
+    encoder.load_state_dict(ckpt["encoder"])
+
+    if rank == 0:
+        logger.info(f"Resumed from checkpoint at epoch {start_epoch}")
+    
+    # Training Loop
+    epochs = config.get("epochs", 200)
+
+    for epoch in range(start_epoch, epochs):
         if train_sampler is not None:
             train_sampler.set_epoch(epoch)
-            
+
         if rank == 0:
             logger.info(f"Epoch {epoch+1}/{epochs}")
 
-        train_loss, train_time, train_mem = pretrain_one_epoch(
-            epoch, model, train_loader, loss_fn, optimizer, scheduler, device, logger if rank == 0 else None
+        train_loss, train_acc, train_time, train_mem = train_one_epoch(
+            epoch, encoder, head, train_loader, loss_fn, optimizer, scheduler, device, logger
         )
-        val_loss, val_time, val_mem = pretrain_evaluate(
-            model, val_loader, loss_fn, device, logger if rank == 0 else None
+        test_loss, test_acc, test_ma, test_time, test_mem, _ = evaluate(
+            encoder, head, test_loader, loss_fn, device, logger, rotation_vote, num_votes
         )
 
         if rank == 0:
             epoch_times.append(train_time)
             epoch_mems.append(train_mem)
-            if val_loss < best_loss:
-                best_loss = val_loss
-                best_epoch = epoch + 1
-                converged_time = sum(epoch_times)
-                converged_mem = max(epoch_mems)
-                save_checkpoint(model, optimizer, scheduler, epoch, best_loss, exp_dir, is_best=True)
+
+            # Sliding window
+            acc_window.append(test_acc)
+            if len(acc_window) > window_size:
+                acc_window.pop(0)
+
+            if len(acc_window) == window_size:
+                window_mean = sum(acc_window) / window_size
+                if window_mean > best_window_mean:
+                    best_window_mean = window_mean
+                    best_acc = max(acc_window)
+                    best_acc_idx = acc_window.index(best_acc)
+                    best_epoch = (epoch + 1 - window_size) + best_acc_idx
+                    converged_epoch = epoch + 1
+                    converged_time = sum(epoch_times)
+                    converged_mem = max(epoch_mems)
+
+                    save_checkpoint(encoder, head, optimizer, scheduler, epoch, best_acc, exp_dir, is_best=True)
 
     if rank == 0:
-        save_checkpoint(model, optimizer, scheduler, epoch, best_loss, exp_dir, is_best=False)
-        logger.info(f"Best Val Loss: {best_loss:.4f} at Epoch {best_epoch}")
-        logger.info(f"[Converged] Epoch: {best_epoch} | Loss: {best_loss:.4f} | Time: {converged_time:.2f}s | Mem: {converged_mem:.1f}MB")
-        logger.info("Pretraining complete.")
+        save_checkpoint(encoder, head, optimizer, scheduler, epoch, best_acc, exp_dir, is_best=False)
+        logger.info(f"Best Test Acc: {best_acc:.2f}% at Epoch {best_epoch}")
+        logger.info(f"[Converged] Epoch: {converged_epoch} | Mean OA: {best_window_mean:.2f}% | Time: {converged_time:.2f}s | Mem: {converged_mem:.1f}MB")
+        logger.info("Training complete.")
