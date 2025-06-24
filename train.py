@@ -20,8 +20,6 @@ def main():
     parser.add_argument("-ckpt", "--ckpt_type", type=str, choices=["best", "last"],
                         default="best", help="Which checkpoint to use when resuming: 'best' (default) or 'last'")
     
-    parser = argparse.ArgumentParser(description="Train model from config or experiment.")
-
     args = parser.parse_args()
 
     # Resolve config path
