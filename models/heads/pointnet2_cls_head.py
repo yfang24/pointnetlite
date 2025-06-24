@@ -3,9 +3,9 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 class PointNet2ClsHead(nn.Module):
-    def __init__(self, in_dim=1024, hidden_dims=[512, 256], out_dim=40, dropout=0.4):
+    def __init__(self, emb_dim=1024, hidden_dims=[512, 256], out_dim=40, dropout=0.4):
         super().__init__()
-        self.fc1 = nn.Linear(in_dim, hidden_dims[0])
+        self.fc1 = nn.Linear(emb_dim, hidden_dims[0])
         self.fc2 = nn.Linear(hidden_dims[0], hidden_dims[1])
         self.fc3 = nn.Linear(hidden_dims[1], out_dim)
 
