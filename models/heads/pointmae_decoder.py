@@ -4,28 +4,28 @@ import torch.nn as nn
 from models.modules.transformer_modules import TransformerDecoder
 
 class PointMAEDecoder(nn.Module):
-    def __init__(self, trans_dim=384, group_size=32, drop_path=0.1, depth=4, num_heads=6):
+    def __init__(self, emb_dim=384, group_size=32, drop_path=0.1, depth=4, num_heads=6):
         super().__init__()
         self.group_size = group_size
-        self.trans_dim = trans_dim
+        self.emb_dim = emb_dim
 
-        self.mask_token = nn.Parameter(torch.zeros(1, 1, trans_dim))
+        self.mask_token = nn.Parameter(torch.zeros(1, 1, emb_dim))
         self.decoder_pos_embed = nn.Sequential(
             nn.Linear(3, 128),
             nn.GELU(),
-            nn.Linear(128, trans_dim)
+            nn.Linear(128, emb_dim)
         )
 
         dpr = [x.item() for x in torch.linspace(0, drop_path, depth)]
         self.decoder = TransformerDecoder(
-            embed_dim=trans_dim,
+            embed_dim=emb_dim,
             depth=depth,
             drop_path=dpr,
             num_heads=num_heads,
         )
 
         self.reconstruction_head = nn.Sequential(
-            nn.Conv1d(trans_dim, 3 * group_size, 1)  # Predict (S x 3) coordinates per group
+            nn.Conv1d(emb_dim, 3 * group_size, 1)  # Predict (S x 3) coordinates per group
         )
 
         nn.init.trunc_normal_(self.mask_token, std=0.02)
@@ -45,7 +45,7 @@ class PointMAEDecoder(nn.Module):
         x_vis, mask, neighborhood, center = x
         
         B, G, S, _ = neighborhood.shape
-        C = self.trans_dim
+        C = self.emb_dim
 
         # Positional embeddings
         pos_vis = self.decoder_pos_embed(center[~mask].reshape(B, -1, 3))  # (B, G_visible, C)
