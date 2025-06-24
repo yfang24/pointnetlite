@@ -76,10 +76,10 @@ encode point cloud, output local/global features, which are fed into MLP for cla
 if global_feat=True, only global feat is returned; otherwise, returns a concat of global and local features
 '''
 class PointNetEncoder(nn.Module):
-    def __init__(self, input_dims=3, global_feat=True, feature_transform=True):
+    def __init__(self, in_dim=3, global_feat=True, feature_transform=True):
         super().__init__()
-        self.stn = STN3d(input_dims)
-        self.conv1 = nn.Conv1d(input_dims, 64, 1)
+        self.stn = STN3d(in_dim)
+        self.conv1 = nn.Conv1d(in_dim, 64, 1)
         self.conv2 = nn.Conv1d(64, 128, 1)
         self.conv3 = nn.Conv1d(128, 1024, 1)
 
