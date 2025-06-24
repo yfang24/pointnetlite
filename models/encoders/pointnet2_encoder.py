@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from utils.pcd_utils import sample_and_group_ball, farthest_point_sample_gpu_batch, ball_query, group_points
+from utils.pcd_utils import fps, ball_group
 
 class PointNet2Encoder(nn.Module):
     def __init__(self, use_msg=False):
@@ -53,7 +53,7 @@ class PointNet2Encoder(nn.Module):
         return torch.cat([mlp(x).max(dim=2)[0] for mlp in mlp_blocks], dim=1)  # (B, C_total, G); max-pooled over groups and concatenated across scales
 
     def _sa_layer(self, input_points, num_group, radius, group_size, mlp_blocks):
-        centers = farthest_point_sample_gpu_batch(input_points, num_group)    
+        centers = fps(input_points, num_group)    
         if self.use_msg:
             feats_list = []
             for r, k, mlp in zip(radius, group_size, mlp_blocks):
