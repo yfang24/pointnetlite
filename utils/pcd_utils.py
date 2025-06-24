@@ -344,21 +344,27 @@ def rotate_xyz(points, rotation_angles):
         R = np.dot(R_z, np.dot(R_y, R_x))
         return np.dot(points, R.T)
     else:
+        device = points.device
+        
+        theta_x = torch.tensor(theta_x, device=device)
+        theta_y = torch.tensor(theta_y, device=device)
+        theta_z = torch.tensor(theta_z, device=device)
+        
         R_x = torch.tensor([
             [1, 0, 0],
             [0, torch.cos(theta_x), -torch.sin(theta_x)],
             [0, torch.sin(theta_x), torch.cos(theta_x)]
-        ], device=points.device)
+        ], device=device)
         R_y = torch.tensor([
             [torch.cos(theta_y), 0, torch.sin(theta_y)],
             [0, 1, 0],
             [-torch.sin(theta_y), 0, torch.cos(theta_y)]
-        ], device=points.device)
+        ], device=device)
         R_z = torch.tensor([
             [torch.cos(theta_z), -torch.sin(theta_z), 0],
             [torch.sin(theta_z), torch.cos(theta_z), 0],
             [0, 0, 1]
-        ], device=points.device)
+        ], device=device)
     R = Rz @ Ry @ Rx
     return points @ R.T
 
