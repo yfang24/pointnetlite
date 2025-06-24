@@ -87,17 +87,9 @@ def knn_group(points, centers, k):
     centers: (B, G, 3)
     return: (B, G, k, 3)
     '''
-    B, N, C = points.shape
-    G = centers.shape[1]
-
     dists = torch.cdist(centers, points)  # (B, G, N)
     idx = dists.topk(k, dim=-1, largest=False)[1]  # (B, G, k)
-
-    idx_base = torch.arange(B, device=points.device).view(B, 1, 1) * N
-    idx = idx + idx_base
-    idx = idx.view(-1)
-    grouped = points.reshape(B * N, C)[idx, :].view(B, G, K, C)
-    return grouped
+    return idx
 
 
 def group_points(points, idx):
