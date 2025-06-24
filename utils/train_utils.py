@@ -262,7 +262,7 @@ def run_training(rank, world_size, local_rank, config, config_path, device, use_
     # Model Profile
     if rank == 0:
         num_points = getattr(train_set, "num_points", train_set[0][0].shape[0])
-        dummy_input = torch.rand(1, 3, num_points).float().to(device)
+        dummy_input = torch.rand(1, num_points, 3).float().to(device)
 
         profiled_model = model.module if isinstance(model, DistributedDataParallel) else model
         flops, params = get_model_profile(profiled_model, dummy_input)    
