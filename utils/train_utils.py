@@ -13,7 +13,7 @@ from torch.nn.parallel import DistributedDataParallel
 from sklearn.metrics import confusion_matrix
 
 from utils.checkpoint_utils import save_checkpoint, load_checkpoint
-from utils.model_utils import get_model_profile
+from utils.model_utils import get_model_profile, unwrap_model
 from utils.log_utils import setup_logger
 from datasets.get_dataset import get_dataset
 from models.encoders.get_encoder import get_encoder
