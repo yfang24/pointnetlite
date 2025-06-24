@@ -6,10 +6,10 @@ from utils.pcd_utils import knn_gather, group_points
 
 
 class DGCNNEncoder(nn.Module):
-    def __init__(self, k=20, emb_dim=1024):
+    def __init__(self, k=20, embed_dim=1024):
         super().__init__()
         self.k = k
-        self.emb_dim = emb_dim
+        self.embed_dim = embed_dim
 
         self.conv1 = nn.Sequential(
             nn.Conv2d(6, 64, kernel_size=1, bias=False),
@@ -32,8 +32,8 @@ class DGCNNEncoder(nn.Module):
             nn.LeakyReLU(0.2)
         )
         self.conv5 = nn.Sequential(
-            nn.Conv1d(512, emb_dim, kernel_size=1, bias=False),
-            nn.BatchNorm1d(emb_dim),
+            nn.Conv1d(512, embed_dim, kernel_size=1, bias=False),
+            nn.BatchNorm1d(embed_dim),
             nn.LeakyReLU(0.2)
         )
 
@@ -55,7 +55,7 @@ class DGCNNEncoder(nn.Module):
         Args:
             x: (B, N, 3)
         Returns:
-            global feature: (B, emb_dim*2)
+            global feature: (B, embed_dim*2)
         """
         B, _, _ = x.shape
         
@@ -65,9 +65,9 @@ class DGCNNEncoder(nn.Module):
         x4 = self.conv4(self._get_graph_feature(x3.transpose(1, 2), self.k)).max(dim=-1)[0]
 
         x_cat = torch.cat((x1, x2, x3, x4), dim=1)  # (B, 512, N)
-        x_feat = self.conv5(x_cat)                 # (B, emb_dim, N)
+        x_feat = self.conv5(x_cat)                 # (B, embed_dim, N)
         
-        x1 = F.adaptive_max_pool1d(x_feat, 1).view(B, -1)  # (B, emb_dim)
+        x1 = F.adaptive_max_pool1d(x_feat, 1).view(B, -1)  # (B, embed_dim)
         x2 = F.adaptive_avg_pool1d(x_feat, 1).view(B, -1)
         x_global = torch.cat((x1, x2), dim=1)
-        return x_global  # (B, emb_dim*2)
+        return x_global  # (B, embed_dim*2)
