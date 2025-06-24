@@ -43,7 +43,7 @@ class ModelNetRender(Dataset):
             if use_cache:
                 print(f"[ModelNetRender] Saving processed data to cache: {self.cache_file}")
                 with open(self.cache_file, 'wb') as f:
-                    pickle.dump({'data': self.data.cpu(), 'labels': self.labels.cpu()}, f)       
+                    pickle.dump({'data': self.data, 'labels': self.labels}, f)       
                     
         self.base_len = len(self.data) // self.num_views
         print(f"\n[ModelNetRender] Loaded {len(self.labels)} samples: {self.base_len} objects x {self.num_views} views, across {len(set(self.labels.tolist()))} classes.")
@@ -97,8 +97,8 @@ class ModelNetRender(Dataset):
                         data.append(points)
                         labels.append(label)
 
-        return torch.stack(data, device=self.device).float(), /
-                torch.tensor(labels, device=self.device).long()
+        return torch.stack(data).float().cpu(), /
+                torch.tensor(labels).long().cpu()
 
     def _get_viewpoints(self, num_views):
         if num_views == 3:
