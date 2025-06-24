@@ -23,8 +23,8 @@ def save_checkpoint(encoder, head, optimizer, scheduler, epoch, best_acc, exp_di
 def load_checkpoint(encoder, head, optimizer, scheduler, path, device):
     checkpoint = torch.load(path, map_location=device)
 
-    encoder = encoder.module if isinstance(encoder, torch.nn.parallel.DistributedDataParallel) else encoder
-    head = head.module if isinstance(head, torch.nn.parallel.DistributedDataParallel) else head
+    encoder = unwrap_model(encoder)
+    head = unwrap_model(head)
 
     encoder.load_state_dict(checkpoint["encoder"])
     head.load_state_dict(checkpoint["head"])
