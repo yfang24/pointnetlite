@@ -355,7 +355,7 @@ def pretrain_one_epoch(epoch, model, dataloader, loss_fn, optimizer, scheduler, 
         total_loss += loss.item() * inputs.size(0)
         total += inputs.size(0)
 
-    scheduler.step(epoch)
+    scheduler.step(epoch) # for AdamW only
 
     end_time = time.time()
     mem_used = torch.cuda.max_memory_allocated(device) / 1024**2  # MB
@@ -406,6 +406,110 @@ def run_pretraining(rank, world_size, local_rank, config, config_path, device, u
             exp_dir = config_path.parent
             logger = setup_logger(exp_dir / "log.txt")
             logger.info(f"\n[Resume] Continuing pretraining")
+        else:
+            exp_time = datetime.now().strftime("%Y%m%d_%H%M%S")
+            exp_name = config_path.stem
+            exp_dir = Path("experiments") / f"{exp_name}_{exp_time}"
+            exp_dir.mkdir(parents=True, exist_ok=True)
+            shutil.copy(config_path, exp_dir / "config.yaml")
+            logger = setup_logger(exp_dir / "log.txt")
+            logger.info(f"Experiment: {exp_name}")
+    else:
+        logger = None
+        exp_dir = None
+
+    # Dataset
+    batch_size = config.get("batch_size", 128)
+    num_workers = config.get("num_workers", 4)
+    train_set = get_dataset(config, "train_dataset")
+    val_set = get_dataset(config, "val_dataset")
+
+    if use_ddp:
+        train_sampler = DistributedSampler(train_set, num_replicas=world_size, rank=rank, shuffle=True)
+        shuffle = False
+    else:
+        train_sampler = None
+        shuffle = True
+
+    train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=shuffle, sampler=train_sampler,
+                              num_workers=num_workers, drop_last=True)
+    val_loader = DataLoader(val_set, batch_size=batch_size, shuffle=False, num_workers=num_workers)
+
+    # Model
+    encoder = get_encoder(config).to(device)
+    head = get_head(config).to(device)  # Here head is decoder for pretraining
+    model = torch.nn.Sequential(encoder, head).to(device)
+    
+    if use_ddp:
+        model = DistributedDataParallel(model, device_ids=[local_rank])
+
+    # Model Profile
+    if rank == 0:
+        num_points = getattr(train_set, "num_points", train_set[0][0].shape[0])
+        dummy_input = torch.rand(1, num_points, 3).float().to(device)
+
+        profiled_model = model.module if isinstance(model, DistributedDataParallel) else model
+        flops, params = get_model_profile(profiled_model, dummy_input)
+        logger.info(f"Model Params: {params:,} | FLOPs: {flops / 1e6:.2f} MFLOPs")
+
+    # Loss
+    loss_fn = get_loss(config)
+
+    # Optimizer + Scheduler
+    named_params = list(model.named_parameters())
+    optimizer = get_optimizer(config, named_params)
+    scheduler = get_scheduler(config, optimizer)
+
+    # Training loop
+    epochs = config.get("epochs", 300)
+    best_loss = float("inf")
+    best_epoch = -1
+    epoch_times, epoch_mems = [], []
+
+    for epoch in range(epochs):
+        if train_sampler is not None:
+            train_sampler.set_epoch(epoch)
+            
+        if rank == 0:
+            logger.info(f"Epoch {epoch+1}/{epochs}")
+
+        train_loss, train_time, train_mem = pretrain_one_epoch(
+            epoch, model, train_loader, loss_fn, optimizer, scheduler, device, logger if rank == 0 else None
+        )
+        val_loss, val_time, val_mem = pretrain_evaluate(
+            model, val_loader, loss_fn, device, logger if rank == 0 else None
+        )
+
+        if rank == 0:
+            epoch_times.append(train_time)
+            epoch_mems.append(train_mem)
+            if val_loss < best_loss:
+                best_loss = val_loss
+                best_epoch = epoch + 1
+                converged_time = sum(epoch_times)
+                converged_mem = max(epoch_mems)
+                save_checkpoint(model, optimizer, scheduler, epoch, best_loss, exp_dir, is_best=True)
+
+    if rank == 0:
+        save_checkpoint(model, optimizer, scheduler, epoch, best_loss, exp_dir, is_best=False)
+        logger.info(f"Best Val Loss: {best_loss:.4f} at Epoch {best_epoch}")
+        logger.info(f"[Converged] Epoch: {best_epoch} | Loss: {best_loss:.4f} | Time: {converged_time:.2f}s | Mem: {converged_mem:.1f}MB")
+        logger.info("Pretraining complete.")
+
+
+#=====================
+#finetune
+#=====================
+def run_finetuning(rank, world_size, local_rank, config, config_path, device, use_ddp):
+    seed = config.get("seed", 42)
+    set_seed(seed)
+
+    is_resumed = "experiments" in str(config_path)
+    if rank == 0:
+        if is_resumed:
+            exp_dir = config_path.parent
+            logger = setup_logger(exp_dir / "log.txt")
+            logger.info(f"\n[Finetune] Training")
         else:
             exp_time = datetime.now().strftime("%Y%m%d_%H%M%S")
             exp_name = config_path.stem
