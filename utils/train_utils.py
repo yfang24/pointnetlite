@@ -22,7 +22,7 @@ from models.losses.get_loss import get_loss
 
 
 #=====================
-#utils
+# utils
 #=====================
 def set_seed(seed):
     torch.manual_seed(seed)
@@ -95,10 +95,11 @@ def get_scheduler(config, optimizer):
 
 
 #=====================
-#train
+# train
 #=====================
-def train_one_epoch(model, dataloader, loss_fn, optimizer, scheduler, device, logger=None):
-    model.train()
+def train_one_epoch(epoch, encoder, head, dataloader, loss_fn, optimizer, scheduler, device, logger=None):
+    encoder.train()
+    head.train()
     torch.cuda.reset_peak_memory_stats(device)
     start_time = time.time()
     
@@ -110,7 +111,7 @@ def train_one_epoch(model, dataloader, loss_fn, optimizer, scheduler, device, lo
         inputs, targets = batch[0].float().to(device), batch[1].long().to(device)
 
         optimizer.zero_grad()
-        outputs = model(inputs)
+        outputs = head(encoder(inputs))
         loss = loss_fn(outputs, targets)
         loss.backward()
         optimizer.step()
@@ -120,7 +121,10 @@ def train_one_epoch(model, dataloader, loss_fn, optimizer, scheduler, device, lo
         correct += preds.eq(targets).sum().item()
         total += inputs.size(0)
 
-    scheduler.step()
+    if "step_with_epoch" in scheduler.__class__.__name__.lower() or hasattr(scheduler, "step_epoch"):
+        scheduler.step(epoch)
+    else:
+        scheduler.step()
     
     end_time = time.time()
     mem_used = torch.cuda.max_memory_allocated(device) / 1024**2  # MB
@@ -133,8 +137,9 @@ def train_one_epoch(model, dataloader, loss_fn, optimizer, scheduler, device, lo
     return avg_loss, acc, epoch_time, mem_used
 
 
-def evaluate(model, dataloader, loss_fn, device, logger=None, rotation_vote=False, num_votes=None):
-    model.eval()
+def evaluate(encoder, head, dataloader, loss_fn, device, logger=None, rotation_vote=False, num_votes=None):
+    encoder.eval()
+    head.eval()
     torch.cuda.reset_peak_memory_stats(device)
     start_time = time.time()
     
@@ -149,7 +154,7 @@ def evaluate(model, dataloader, loss_fn, device, logger=None, rotation_vote=Fals
         for batch in tqdm(dataloader, desc="Eval", leave=False):
             inputs, targets = batch[0].float().to(device), batch[1].long().to(device)
 
-            outputs = model(inputs)
+            outputs = head(encoder(inputs))
             loss = loss_fn(outputs, targets)
 
             total_loss += loss.item() * inputs.size(0)
@@ -256,15 +261,14 @@ def run_training(rank, world_size, local_rank, config, config_path, device, use_
     model = torch.nn.Sequential(encoder, head).to(device)
     
     if use_ddp:
-        model = DistributedDataParallel(model, device_ids=[local_rank])
+        encoder = DistributedDataParallel(encoder, device_ids=[local_rank])
+        head = DistributedDataParallel(head, device_ids=[local_rank])
         
     # Model Profile
     if rank == 0:
         num_points = getattr(train_set, "num_points", train_set[0][0].shape[0])
         dummy_input = torch.rand(1, num_points, 3).float().to(device)
-
-        profiled_model = model.module if isinstance(model, DistributedDataParallel) else model
-        flops, params = get_model_profile(profiled_model, dummy_input)    
+        flops, params = get_model_profile(model, dummy_input)    
         logger.info(f"Model Params: {params:,} | FLOPs: {flops / 1e6:.2f} MFLOPs")      
 
     # Loss
@@ -290,7 +294,8 @@ def run_training(rank, world_size, local_rank, config, config_path, device, use_
     ckpt_path = exp_dir / f"checkpoint_{ckpt_type}.pth"
     if is_resumed and ckpt_path.exists():
         ckpt = torch.load(ckpt_path, map_location=device)
-        model.load_state_dict(ckpt["model"])
+        encoder.load_state_dict(ckpt["encoder"])
+        head.load_state_dict(ckpt["head"])
         optimizer.load_state_dict(ckpt["optimizer"])
         scheduler.load_state_dict(ckpt["scheduler"])
         start_epoch = ckpt["epoch"] + 1
@@ -309,10 +314,10 @@ def run_training(rank, world_size, local_rank, config, config_path, device, use_
             logger.info(f"Epoch {epoch+1}/{epochs}")
 
         train_loss, train_acc, train_time, train_mem = train_one_epoch(
-            model, train_loader, loss_fn, optimizer, scheduler, device, logger
+            epoch, encoder, head, train_loader, loss_fn, optimizer, scheduler, device, logger
         )
         test_loss, test_acc, test_ma, test_time, test_mem, _ = evaluate(
-            model, test_loader, loss_fn, device, logger, rotation_vote, num_votes
+            encoder, head, test_loader, loss_fn, device, logger, rotation_vote, num_votes
         )
 
         if rank == 0:
@@ -335,20 +340,22 @@ def run_training(rank, world_size, local_rank, config, config_path, device, use_
                     converged_time = sum(epoch_times)
                     converged_mem = max(epoch_mems)
 
-                    save_checkpoint(model, optimizer, scheduler, epoch, best_acc, exp_dir, is_best=True)
+                    save_checkpoint(encoder, head, optimizer, scheduler, epoch, best_acc, exp_dir, is_best=True)
 
     if rank == 0:
-        save_checkpoint(model, optimizer, scheduler, epoch, best_acc, exp_dir, is_best=False)
+        save_checkpoint(encoder, head, optimizer, scheduler, epoch, best_acc, exp_dir, is_best=False)
         logger.info(f"Best Test Acc: {best_acc:.2f}% at Epoch {best_epoch}")
         logger.info(f"[Converged] Epoch: {converged_epoch} | Mean OA: {best_window_mean:.2f}% | Time: {converged_time:.2f}s | Mem: {converged_mem:.1f}MB")
         logger.info("Training complete.")
         
         
 #=====================
-#pretrain
+# pretrain
 #=====================
-def pretrain_one_epoch(epoch, model, dataloader, loss_fn, optimizer, scheduler, device, logger=None):
-    model.train()
+def pretrain_one_epoch(epoch, encoder, head, dataloader, loss_fn, optimizer, scheduler, device, logger=None):
+    encoder.train()
+    head.train()
+    
     torch.cuda.reset_peak_memory_stats(device)
     start_time = time.time()
 
@@ -359,7 +366,7 @@ def pretrain_one_epoch(epoch, model, dataloader, loss_fn, optimizer, scheduler, 
         inputs = batch[0].float().to(device)  # (B, N, 3)
 
         optimizer.zero_grad()
-        pred, target = model(inputs)
+        pred, target = head(encoder(inputs))
 
         loss = loss_fn(pred, target)
         loss.backward()
@@ -368,7 +375,10 @@ def pretrain_one_epoch(epoch, model, dataloader, loss_fn, optimizer, scheduler, 
         total_loss += loss.item() * inputs.size(0)
         total += inputs.size(0)
 
-    scheduler.step(epoch) # for AdamW only
+    if "step_with_epoch" in scheduler.__class__.__name__.lower() or hasattr(scheduler, "step_epoch"):
+        scheduler.step(epoch)
+    else:
+        scheduler.step()
 
     end_time = time.time()
     mem_used = torch.cuda.max_memory_allocated(device) / 1024**2  # MB
@@ -380,8 +390,10 @@ def pretrain_one_epoch(epoch, model, dataloader, loss_fn, optimizer, scheduler, 
 
     return avg_loss, epoch_time, mem_used
 
-def pretrain_evaluate(model, dataloader, loss_fn, device, logger=None):
-    model.eval()
+def pretrain_evaluate(encoder, head, dataloader, loss_fn, device, logger=None):
+    encoder.eval()
+    head.eval()
+    
     torch.cuda.reset_peak_memory_stats(device)
     start_time = time.time()
 
@@ -392,7 +404,7 @@ def pretrain_evaluate(model, dataloader, loss_fn, device, logger=None):
         for batch in tqdm(dataloader, desc="Val", leave=False):
             inputs = batch[0].float().to(device)  # (B, N, 3)
 
-            pred, target = model(inputs)
+            pred, target = head(encoder(inputs))
 
             loss = loss_fn(pred, target)
             total_loss += loss.item() * inputs.size(0)
@@ -409,31 +421,33 @@ def pretrain_evaluate(model, dataloader, loss_fn, device, logger=None):
     return avg_loss, epoch_time, mem_used
 
 
-def run_pretraining(rank, world_size, local_rank, config, config_path, device, use_ddp):
+def run_pretraining(rank, world_size, local_rank, config, config_path, device, use_ddp, exp_name=None, ckpt_type="best"):
     seed = config.get("seed", 42)
     set_seed(seed)
 
+    # Setup experiment directory and logger
     is_resumed = "experiments" in str(config_path)
     if rank == 0:
-        if is_resumed:
-            exp_dir = config_path.parent
+        if is_resumed:  # config_path = code/experiments/exp_name/config.yaml
+            exp_dir = config_path.parent  
             logger = setup_logger(exp_dir / "log.txt")
-            logger.info(f"\n[Resume] Continuing pretraining")
-        else:
+            logger.info(f"\n[Resume] Continuing training")
+        else:  # config_path = code/configs/config.yaml
             exp_time = datetime.now().strftime("%Y%m%d_%H%M%S")
-            exp_name = config_path.stem
-            exp_dir = Path("experiments") / f"{exp_name}_{exp_time}"
+            exp_name = config_path.stem  # config_name
+            exp_dir = config_path.parents[1] / "experiments" / f"{exp_name}_{exp_time}"
             exp_dir.mkdir(parents=True, exist_ok=True)
             shutil.copy(config_path, exp_dir / "config.yaml")
+            
             logger = setup_logger(exp_dir / "log.txt")
             logger.info(f"Experiment: {exp_name}")
     else:
         logger = None
-        exp_dir = None
 
     # Dataset
     batch_size = config.get("batch_size", 128)
     num_workers = config.get("num_workers", 4)
+    
     train_set = get_dataset(config, "train_dataset")
     val_set = get_dataset(config, "val_dataset")
 
@@ -454,15 +468,14 @@ def run_pretraining(rank, world_size, local_rank, config, config_path, device, u
     model = torch.nn.Sequential(encoder, head).to(device)
     
     if use_ddp:
-        model = DistributedDataParallel(model, device_ids=[local_rank])
+        encoder = DistributedDataParallel(encoder, device_ids=[local_rank])
+        head = DistributedDataParallel(head, device_ids=[local_rank])
 
     # Model Profile
     if rank == 0:
         num_points = getattr(train_set, "num_points", train_set[0][0].shape[0])
         dummy_input = torch.rand(1, num_points, 3).float().to(device)
-
-        profiled_model = model.module if isinstance(model, DistributedDataParallel) else model
-        flops, params = get_model_profile(profiled_model, dummy_input)
+        flops, params = get_model_profile(model, dummy_input)
         logger.info(f"Model Params: {params:,} | FLOPs: {flops / 1e6:.2f} MFLOPs")
 
     # Loss
@@ -473,13 +486,28 @@ def run_pretraining(rank, world_size, local_rank, config, config_path, device, u
     optimizer = get_optimizer(config, named_params)
     scheduler = get_scheduler(config, optimizer)
 
-    # Training loop
-    epochs = config.get("epochs", 300)
+    # Resume logic
+    start_epoch = 0
+
     best_loss = float("inf")
     best_epoch = -1
     epoch_times, epoch_mems = [], []
 
-    for epoch in range(epochs):
+    ckpt_path = exp_dir / f"checkpoint_{ckpt_type}.pth"
+    if is_resumed and ckpt_path.exists():
+        ckpt = torch.load(ckpt_path, map_location=device)
+        model.load_state_dict(ckpt["model"])
+        optimizer.load_state_dict(ckpt["optimizer"])
+        scheduler.load_state_dict(ckpt["scheduler"])
+        start_epoch = ckpt["epoch"] + 1
+        best_acc = ckpt.get("best_acc", 0.0)
+        if rank == 0:
+            logger.info(f"Resumed from checkpoint at epoch {start_epoch}")
+            
+    # Training loop
+    epochs = config.get("epochs", 300)    
+
+    for epoch in range(start_epoch, epochs):
         if train_sampler is not None:
             train_sampler.set_epoch(epoch)
             
@@ -487,10 +515,10 @@ def run_pretraining(rank, world_size, local_rank, config, config_path, device, u
             logger.info(f"Epoch {epoch+1}/{epochs}")
 
         train_loss, train_time, train_mem = pretrain_one_epoch(
-            epoch, model, train_loader, loss_fn, optimizer, scheduler, device, logger if rank == 0 else None
+            epoch, encoder, head, train_loader, loss_fn, optimizer, scheduler, device, logger if rank == 0 else None
         )
         val_loss, val_time, val_mem = pretrain_evaluate(
-            model, val_loader, loss_fn, device, logger if rank == 0 else None
+            encoder, head, val_loader, loss_fn, device, logger if rank == 0 else None
         )
 
         if rank == 0:
@@ -501,10 +529,10 @@ def run_pretraining(rank, world_size, local_rank, config, config_path, device, u
                 best_epoch = epoch + 1
                 converged_time = sum(epoch_times)
                 converged_mem = max(epoch_mems)
-                save_checkpoint(model, optimizer, scheduler, epoch, best_loss, exp_dir, is_best=True)
+                save_checkpoint(encoder, head, optimizer, scheduler, epoch, best_loss, exp_dir, is_best=True)
 
     if rank == 0:
-        save_checkpoint(model, optimizer, scheduler, epoch, best_loss, exp_dir, is_best=False)
+        save_checkpoint(encoder, head, optimizer, scheduler, epoch, best_loss, exp_dir, is_best=False)
         logger.info(f"Best Val Loss: {best_loss:.4f} at Epoch {best_epoch}")
         logger.info(f"[Converged] Epoch: {best_epoch} | Loss: {best_loss:.4f} | Time: {converged_time:.2f}s | Mem: {converged_mem:.1f}MB")
         logger.info("Pretraining complete.")
@@ -513,7 +541,7 @@ def run_pretraining(rank, world_size, local_rank, config, config_path, device, u
 #=====================
 #finetune
 #=====================
-def run_finetuning(rank, world_size, local_rank, config, config_path, device, use_ddp):
+def run_finetuning(rank, world_size, local_rank, config, config_path, device, use_ddp, exp_name=None, ckpt_type="best"):
     seed = config.get("seed", 42)
     set_seed(seed)
 
