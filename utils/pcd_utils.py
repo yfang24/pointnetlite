@@ -81,18 +81,24 @@ def farthest_point_sample_gpu_batch(points, n):
     sampled_points = points[batch_indices[:, None], centroids]  # (B, n, 3)
     return sampled_points
 
-def knn_gather(points, centers, k):
+def knn_group(points, centers, k):
     '''
     points: (B, N, 3)
     centers: (B, G, 3)
-    return: (B, G, k); indices of k-NNs of each center in the full point cloud
+    return: (B, G, k, 3)
     '''
-    B, N, _ = points.shape
+    B, N, C = points.shape
     G = centers.shape[1]
 
     dists = torch.cdist(centers, points)  # (B, G, N)
     idx = dists.topk(k, dim=-1, largest=False)[1]  # (B, G, k)
-    return idx
+
+    idx_base = torch.arange(B, device=points.device).view(B, 1, 1) * N
+    idx = idx + idx_base
+    idx = idx.view(-1)
+    grouped = points.reshape(B * N, C)[idx, :].view(B, G, K, C)
+    return grouped
+
 
 def group_points(points, idx):
     '''
