@@ -19,16 +19,19 @@ def save_checkpoint(encoder, head, optimizer, scheduler, epoch, best_acc, exp_di
     if is_best:
         best_path = Path(exp_dir) / "checkpoint_best.pth"
         torch.save(checkpoint, best_path)
-
+    
 def load_checkpoint(encoder, head, optimizer, scheduler, path, device):
     checkpoint = torch.load(path, map_location=device)
 
-    encoder.load_state_dict(checkpoint['encoder'])
-    head.load_state_dict(checkpoint['head'])
-    optimizer.load_state_dict(checkpoint['optimizer'])
-    scheduler.load_state_dict(checkpoint['scheduler'])
+    encoder = encoder.module if isinstance(encoder, torch.nn.parallel.DistributedDataParallel) else encoder
+    head = head.module if isinstance(head, torch.nn.parallel.DistributedDataParallel) else head
 
-    start_epoch = checkpoint.get('epoch', 0) + 1
-    best_acc = checkpoint.get('best_acc', 0.0)
+    encoder.load_state_dict(checkpoint["encoder"])
+    head.load_state_dict(checkpoint["head"])
+    optimizer.load_state_dict(checkpoint["optimizer"])
+    scheduler.load_state_dict(checkpoint["scheduler"])
+
+    start_epoch = checkpoint.get("epoch", 0) + 1
+    best_acc = checkpoint.get("best_acc", 0.0)
 
     return start_epoch, best_acc
