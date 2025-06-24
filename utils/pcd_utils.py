@@ -16,7 +16,7 @@ def normalize_pcd_tensor(points):
 #pointnet++: fps-ball-group
 # G: num_group; S: group_size
 #=====
-def ball_group(centers, points, radius, nsample):  # nsample=group_size
+def ball_group(points, centers, radius, nsample):  # nsample=group_size
     B, G, _ = centers.shape
     N = points.shape[1]
 
