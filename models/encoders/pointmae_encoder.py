@@ -6,9 +6,9 @@ from models.modules.transformer_modules import TransformerEncoder
 
 # encode point cloud to 1024dims using pointnet-like encoder
 class PointGroupEncoder(nn.Module):
-    def __init__(self, encoder_dims=1024):
+    def __init__(self, emb_dim=1024):
         super().__init__()
-        self.encoder_dims = encoder_dims
+        self.emb_dim = emb_dim
         self.first_conv = nn.Sequential(
             nn.Conv1d(3, 128, 1),
             nn.BatchNorm1d(128),
@@ -19,7 +19,7 @@ class PointGroupEncoder(nn.Module):
             nn.Conv1d(512, 512, 1),
             nn.BatchNorm1d(512),
             nn.ReLU(inplace=True),
-            nn.Conv1d(512, encoder_dims, 1)
+            nn.Conv1d(512, emb_dim, 1)
         )
 
     def forward(self, x):
@@ -30,11 +30,11 @@ class PointGroupEncoder(nn.Module):
         x = torch.cat([x_global.expand(-1, -1, N), x], dim=1)      # (BG, 512, N)
         x = self.second_conv(x)                                    # (BG, D, N)
         x = torch.max(x, dim=2)[0]                                 # (BG, D)
-        return x.view(B, G, self.encoder_dims)                  # (B, G, D)
+        return x.view(B, G, self.emb_dim)                  # (B, G, D)
         
         
 class PointMAEEncoder(nn.Module):
-    def __init__(self, encoder_dims=384, trans_dim=384, depth=12, drop_path=0.1,
+    def __init__(self, emb_dim=384, trans_dim=384, depth=12, drop_path=0.1,
                  num_heads=6, mask_ratio=0.6, mask_type='rand', group_size=32, num_group=64):
         super().__init__()        
         self.group_size = group_size
@@ -43,7 +43,7 @@ class PointMAEEncoder(nn.Module):
         self.trans_dim = trans_dim
         self.mask_type = mask_type
         
-        self.encoder = PointGroupEncoder(encoder_dims=encoder_dims)
+        self.encoder = PointGroupEncoder(emb_dim=emb_dim)
         self.pos_embed = nn.Sequential(
             nn.Linear(3, 128),
             nn.GELU(),
