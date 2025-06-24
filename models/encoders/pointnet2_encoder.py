@@ -57,14 +57,13 @@ class PointNet2Encoder(nn.Module):
         if self.use_msg:
             feats_list = []
             for r, k, mlp in zip(radius, group_size, mlp_blocks):
-                idx = ball_query(centers, input_points, r, k)
-                grouped = group_points(input_points, idx) - centers.unsqueeze(2)
-                f = mlp(grouped.permute(0, 3, 2, 1))  # (B, C, k, G)
+                neighborhoods = ball_group(input_points, centers, r, k)
+                f = mlp(neighborhoods.permute(0, 3, 2, 1))  # (B, C, k, G)
                 f = torch.max(f, dim=2)[0]            # (B, C, G)
                 feats_list.append(f)
             features = torch.cat(feats_list, dim=1)   # (B, sum(C), G)
         else:
-            neighborhoods, centers = sample_and_group_ball(input_points, num_group, group_size, radius)
+            neighborhoods = ball_group(input_points, centers, radius, group_size)
             features = self._apply_mlp_blocks(neighborhoods, mlp_blocks)  # (B, C, G)    
         return features, centers
 
