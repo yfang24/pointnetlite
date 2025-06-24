@@ -23,7 +23,7 @@ def main():
     # Resolve config path
     if args.config_name:
         config_path = root_dir / "configs" / (args.config_name if args.config_name.endswith(".yaml") else args.config_name + ".yaml")
-    elif args.exp_name:  # resumed training
+    elif args.exp_name:  # resumed training (if only exp name is provided--no config; it is finetune if config is also provided)
         config_path = root_dir / "experiments" / args.exp_name / "config.yaml"
     else:
         raise ValueError("At least one of --config_name or --exp_name must be provided.")        
