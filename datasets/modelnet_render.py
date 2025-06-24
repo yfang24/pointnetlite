@@ -97,7 +97,7 @@ class ModelNetRender(Dataset):
                         data.append(points)
                         labels.append(label)
 
-        return torch.stack(data).float().cpu(), /
+        return torch.stack(data).float().cpu(), \
                 torch.tensor(labels).long().cpu()
 
     def _get_viewpoints(self, num_views):
