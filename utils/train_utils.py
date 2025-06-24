@@ -121,7 +121,7 @@ def train_one_epoch(epoch, encoder, head, dataloader, loss_fn, optimizer, schedu
         correct += preds.eq(targets).sum().item()
         total += inputs.size(0)
 
-    if "step_with_epoch" in scheduler.__class__.__name__.lower() or hasattr(scheduler, "step_epoch"):
+    if isinstance(scheduler, CosineLRScheduler):
         scheduler.step(epoch)
     else:
         scheduler.step()
@@ -372,7 +372,7 @@ def pretrain_one_epoch(epoch, encoder, head, dataloader, loss_fn, optimizer, sch
         total_loss += loss.item() * inputs.size(0)
         total += inputs.size(0)
 
-    if "step_with_epoch" in scheduler.__class__.__name__.lower() or hasattr(scheduler, "step_epoch"):
+    if isinstance(scheduler, CosineLRScheduler):
         scheduler.step(epoch)
     else:
         scheduler.step()
