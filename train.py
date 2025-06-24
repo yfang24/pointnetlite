@@ -11,6 +11,10 @@ from configs.load_config import load_config
 def main():
     parser = argparse.ArgumentParser(description="Train/pretrain/finetune model from config and/or experiment.")
 
+    # train/pretrain: -cfg
+    # resumed train/pretrain/fintune: -exp
+    # finetune: -cfg and -exp
+    
     parser.add_argument("-cfg", "--config_name", type=str, help="Name of config file in /code/configs/")
     parser.add_argument("-exp", "--exp_name", type=str, help="Name of experiment folder under /code/experiments/")
     
