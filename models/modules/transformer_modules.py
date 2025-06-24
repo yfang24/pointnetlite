@@ -4,13 +4,13 @@ from timm.layers import DropPath
 
 # feed forward layer in transformer block
 class Mlp(nn.Module):
-    def __init__(self, in_features, hidden_features=None, out_features=None, drop=0.):
+    def __init__(self, in_dim, hidden_dims=None, out_dim=None, drop=0.):
         super().__init__()
-        hidden_features = hidden_features or in_features
-        out_features = out_features or in_features
-        self.fc1 = nn.Linear(in_features, hidden_features)
+        hidden_dims = hidden_dims or in_dim
+        out_dim = out_dim or in_dim
+        self.fc1 = nn.Linear(in_dim, hidden_dims)
         self.act = nn.GELU()
-        self.fc2 = nn.Linear(hidden_features, out_features)
+        self.fc2 = nn.Linear(hidden_dims, out_dim)
         self.drop = nn.Dropout(drop)
 
     def forward(self, x):
@@ -21,14 +21,14 @@ class Mlp(nn.Module):
 
 # multi-head self-attention; heads' attn_out are concatenated and merged via a linear proj
 class MultiHeadAttention(nn.Module):
-    def __init__(self, dim, num_heads=8, qkv_bias=False, qk_scale=None, attn_drop=0., proj_drop=0.):
+    def __init__(self, emb_dim, num_heads=8, qkv_bias=False, qk_scale=None, attn_drop=0., proj_drop=0.):
         super().__init__()
         self.num_heads = num_heads
-        head_dim = dim // num_heads
+        head_dim = emb_dim // num_heads
         self.scale = qk_scale or head_dim ** -0.5
-        self.qkv = nn.Linear(dim, dim * 3, bias=qkv_bias)
+        self.qkv = nn.Linear(emb_dim, emb_dim * 3, bias=qkv_bias)
         self.attn_drop = nn.Dropout(attn_drop)
-        self.proj = nn.Linear(dim, dim)
+        self.proj = nn.Linear(emb_dim, emb_dim)
         self.proj_drop = nn.Dropout(proj_drop)
 
     def forward(self, x):
@@ -36,7 +36,7 @@ class MultiHeadAttention(nn.Module):
         qkv = self.qkv(x).reshape(B, N, 3, self.num_heads, D // self.num_heads).permute(2, 0, 3, 1, 4)
         q, k, v = qkv[0], qkv[1], qkv[2]                          # (B, H, N, D_head=D//H)
         attn = (q @ k.transpose(-2, -1)) * self.scale             # (B, H, N, N)
-        attn = self.attn_drop(attn.softmax(dim=-1))
+        attn = self.attn_drop(attn.softmax(emb_dim=-1))
         x = (attn @ v).transpose(1, 2).reshape(B, N, D)           # (B, H, N, D_head) -> (B, N, D)
         return self.proj_drop(self.proj(x))                       # (B, N, D)
 
@@ -44,14 +44,14 @@ class MultiHeadAttention(nn.Module):
 # x -> attn module: layernorm+attn -> residual -> ff module: laynorm+mlp -> residual -> output
 # droppath: attn/ff module might be skipped
 class TransformerBlock(nn.Module):
-    def __init__(self, dim, num_heads, mlp_ratio=4., qkv_bias=False, qk_scale=None,
+    def __init__(self, emb_dim, num_heads, mlp_ratio=4., qkv_bias=False, qk_scale=None,
                  drop=0., attn_drop=0., drop_path=0.):
         super().__init__()
-        self.norm1 = nn.LayerNorm(dim)
-        self.attn = MultiHeadAttention(dim, num_heads, qkv_bias, qk_scale, attn_drop, drop)
+        self.norm1 = nn.LayerNorm(emb_dim)
+        self.attn = MultiHeadAttention(emb_dim, num_heads, qkv_bias, qk_scale, attn_drop, drop)
         self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
-        self.norm2 = nn.LayerNorm(dim)
-        self.mlp = Mlp(dim, int(dim * mlp_ratio), drop=drop)
+        self.norm2 = nn.LayerNorm(emb_dim)
+        self.mlp = Mlp(emb_dim, int(emb_dim * mlp_ratio), drop=drop)
 
     def forward(self, x):
         x = x + self.drop_path(self.attn(self.norm1(x)))                          # (B, N, D)
@@ -60,11 +60,11 @@ class TransformerBlock(nn.Module):
 
 
 class TransformerEncoder(nn.Module):
-    def __init__(self, embed_dim=768, depth=4, num_heads=12, mlp_ratio=4., 
+    def __init__(self, emb_dim=768, depth=4, num_heads=12, mlp_ratio=4., 
                  qkv_bias=False, qk_scale=None, drop=0., attn_drop=0., drop_path=0.):
         super().__init__()
         self.blocks = nn.ModuleList([
-            TransformerBlock(embed_dim, num_heads, mlp_ratio, qkv_bias, qk_scale,
+            TransformerBlock(emb_dim, num_heads, mlp_ratio, qkv_bias, qk_scale,
                   drop, attn_drop, drop_path[i] if isinstance(drop_path, list) else drop_path)
             for i in range(depth)])
     
@@ -86,14 +86,14 @@ class TransformerEncoder(nn.Module):
 
 
 class TransformerDecoder(nn.Module):
-    def __init__(self, embed_dim=384, depth=4, num_heads=6, mlp_ratio=4., 
+    def __init__(self, emb_dim=384, depth=4, num_heads=6, mlp_ratio=4., 
                  qkv_bias=False, qk_scale=None, drop=0., attn_drop=0., drop_path=0.1):
         super().__init__()
         self.blocks = nn.ModuleList([
-            TransformerBlock(embed_dim, num_heads, mlp_ratio, qkv_bias, qk_scale,
+            TransformerBlock(emb_dim, num_heads, mlp_ratio, qkv_bias, qk_scale,
                   drop, attn_drop, drop_path[i] if isinstance(drop_path, list) else drop_path)
             for i in range(depth)])
-        self.norm = nn.LayerNorm(embed_dim)
+        self.norm = nn.LayerNorm(emb_dim)
 
         self.apply(self._init_weights)
 
