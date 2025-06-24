@@ -2,13 +2,13 @@ import torch
 import torch.nn as nn
 
 class PointMAEClsHead(nn.Module):
-    def __init__(self, emb_dim=384, out_dim=40):
+    def __init__(self, embed_dim=384, out_dim=40):
         super().__init__()
-        self.cls_token = nn.Parameter(torch.zeros(1, 1, emb_dim))
-        self.cls_pos = nn.Parameter(torch.randn(1, 1, emb_dim))
+        self.cls_token = nn.Parameter(torch.zeros(1, 1, embed_dim))
+        self.cls_pos = nn.Parameter(torch.randn(1, 1, embed_dim))
 
         self.cls_head = nn.Sequential(
-            nn.Linear(emb_dim * 2, 256),
+            nn.Linear(embed_dim * 2, 256),
             nn.BatchNorm1d(256),
             nn.ReLU(inplace=True),
             nn.Dropout(0.5),
@@ -37,22 +37,22 @@ class PointMAEClsHead(nn.Module):
             if m.bias is not None:
                 nn.init.constant_(m.bias, 0)
                 
-    def forward(self, x): # (B, G, emb_dim)
+    def forward(self, x): # (B, G, embed_dim)
         B = x.size(0)
         
-        cls_tok = self.cls_token.expand(B, -1, -1)  # (B, 1, emb_dim)
-        cls_pos = self.cls_pos.expand(B, -1, -1)    # (B, 1, emb_dim)
+        cls_tok = self.cls_token.expand(B, -1, -1)  # (B, 1, embed_dim)
+        cls_pos = self.cls_pos.expand(B, -1, -1)    # (B, 1, embed_dim)
 
         # concatenate cls token to features
-        x = torch.cat([cls_tok, x], dim=1)          # (B, G+1, emb_dim)
+        x = torch.cat([cls_tok, x], dim=1)          # (B, G+1, embed_dim)
         pos = torch.cat([cls_pos, torch.zeros_like(x[:, 1:])], dim=1)  # dummy pos for now
 
         # Apply positional encoding if needed (optional)
         x = x + pos
 
         # Simple global + token fusion
-        cls_feature = x[:, 0]                       # (B, emb_dim); cls_token (B, emb_dim) + its pos
-        global_feature = x[:, 1:].max(dim=1)[0]     # (B, emb_dim); max over groups(input group token x (B, G, emb_dim) + their pos (zeros))
-        feat = torch.cat([cls_feature, global_feature], dim=1)  # (B, 2emb_dim)
+        cls_feature = x[:, 0]                       # (B, embed_dim); cls_token (B, embed_dim) + its pos
+        global_feature = x[:, 1:].max(dim=1)[0]     # (B, embed_dim); max over groups(input group token x (B, G, embed_dim) + their pos (zeros))
+        feat = torch.cat([cls_feature, global_feature], dim=1)  # (B, 2embed_dim)
 
         return self.cls_head(feat)                  # (B, out_dim)
