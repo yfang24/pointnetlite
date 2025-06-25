@@ -2,12 +2,18 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from models.modules.builders import build_shared_mlp
+
 # A Spatial Transformer Network (STN) that learns a kxk transformation matrix.
 class STNkd(nn.Module):
     def __init__(self, k=64):
         super().__init__()
         self.k = k
 
+        # Shared MLP: input (B, k, N) → (B, 1024, N)
+        self.shared_mlp = build_shared_mlp(k, [64, 128, 1024], use_1d=True)
+
+        
         self.feat = nn.Sequential(
             nn.Conv1d(k, 64, 1),
             nn.BatchNorm1d(64),
