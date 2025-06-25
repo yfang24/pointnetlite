@@ -1,13 +1,24 @@
 import torch.nn as nn
 
-def build_shared_mlp(in_dim, mlp_channels, dim=2): # set dim=2 if using grouped points (B, G, S, in_dim)
+# shared mlp = conv + bn + act
+def build_shared_mlp(dims, dim=1, act=nn.ReLU(inplace=True)): # set dim=2 if using grouped points (B, G, S, in_dim)
+    assert dim in [1, 2]
+    conv = nn.Conv1d if dim == 1 else nn.Conv2d
+    bn = nn.BatchNorm1d if dim == 1 else nn.BatchNorm2d
+    
     layers = []
-    for out_dim in mlp_channels:
-        if dim == 2:
-            layers += [nn.Conv2d(in_dim, out_dim, 1), nn.BatchNorm2d(out_dim), nn.ReLU(inplace=True)]
-        elif dim == 1:
-            layers += [nn.Conv1d(in_dim, out_dim, 1), nn.BatchNorm1d(out_dim), nn.ReLU(inplace=True)]
-        else:
-            raise ValueError("Only dim=1 or dim=2 supported")
-        in_dim = out_dim
+    for in_dim, out_dim in zip(dims[:-1], dims[1:]):
+        layers += [conv(in_dim, out_dim, 1), bn(out_dim), get_activation(act)]
+    return nn.Sequential(*layers)
+
+# fc = linear + bn + act
+def build_fc_layers(dims, act=nn.ReLU(inplace=True), final_act=False, dropout=0.0)
+    layers = []
+    for i in range(len(dims) - 1):
+        layers.append(nn.Linear(dims[i], dims[i + 1]))
+        layers.append(nn.BatchNorm1d(dims[i + 1]))
+        if i < len(dims) - 2 or final_act:
+            layers.append(act)
+            if dropout > 0:
+                layers.append(nn.Dropout(dropout))
     return nn.Sequential(*layers)
