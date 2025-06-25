@@ -26,7 +26,7 @@ def build_shared_mlp(dims, conv_dim=1, act=nn.ReLU(inplace=True), final_act=Fals
 
 # fc_layer = linear + bn + act + dropout
 # final fc = linear (typically)
-def build_fc_layers(dims, act=nn.ReLU(inplace=True), dropout=0.0, final_act=False, final_bn=False):
+def build_fc_layers(dims, act=nn.ReLU(inplace=True), dropout=0.0, final_bn=False, final_act=False):
     '''
     dropout: float or list of float(s), dropout rate(s) per layer
     '''
