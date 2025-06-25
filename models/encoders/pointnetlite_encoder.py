@@ -23,3 +23,34 @@ class PointNetLiteEncoder(nn.Module):
         x = self.bn3(self.conv3(x))
         x, _ = torch.max(x, dim=2)
         return x  # (B, 1024)
+
+class PointNetLiteEncoder(nn.Module):
+    def __init__(self, in_dim=3, hidden_dims=[64, 128], embed_dim=1024, conv_dim=1, act=nn.ReLU(inplace=True), return_all=False):
+        """
+        conv_dim (int): default=1; set to 2 if working with grouped points (B, G, S, C)
+        return_all (bool): If True, return global_feat (B, embed_dim), local_feat (B, N, embed_dim)
+        """
+        super().__init__()
+        self.return_all = return_all
+        self.mlp = build_shared_mlp(hidden_dims + [embed_dim], conv_dim=1, act=act)
+
+    def forward(self, x):
+        """
+        Args:
+            x (Tensor): Input point cloud of shape (B, N, in_dim)
+
+        Returns:
+            If return_all is False:
+                global_feat (Tensor): (B, embed_dim)
+            If return_all is True:
+                global_feat (Tensor): (B, embed_dim)
+                local_feat (Tensor): (B, N, last_hidden_dim)
+        """
+        x = x.permute(0, 2, 1)  # (B, in_dim, N)
+        feat = self.mlp(x)      # (B, embed_dim, N)
+        global_feat = torch.max(feat, dim=2)[0]  # (B, embed_dim)
+
+        if self.return_all:
+            local_feat = feat.permute(0, 2, 1)  # (B, N, embed_dim)
+            return global_feat, local_feat
+        return global_feat
