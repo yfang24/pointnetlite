@@ -7,6 +7,9 @@ from models.modules.builders import build_shared_mlp
 # A Spatial Transformer Network (STN) that learns a kxk transformation matrix.
 class STNkd(nn.Module):
     def __init__(self, k=64, act=nn.ReLU(inplace=True), dropout=0.0):
+        """
+        
+        """
         super().__init__()
         self.k = k
 
