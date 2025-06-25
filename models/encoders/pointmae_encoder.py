@@ -6,11 +6,11 @@ from models.modules.transformer_modules import TransformerEncoder
 
 # encode grouped point cloud using pointnet-like encoder
 class PointGroupEncoder(nn.Module):
-    def __init__(self, embed_dim=1024):
+    def __init__(self, in_dim=3, embed_dim=1024):
         super().__init__()
         self.embed_dim = embed_dim
         self.first_conv = nn.Sequential(
-            nn.Conv1d(3, 128, 1),
+            nn.Conv1d(in_dim, 128, 1),
             nn.BatchNorm1d(128),
             nn.ReLU(inplace=True),
             nn.Conv1d(128, 256, 1)
