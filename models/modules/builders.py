@@ -15,23 +15,29 @@ def build_shared_mlp(dims, conv_dim=1, act=nn.ReLU(inplace=True)):
     return nn.Sequential(*layers)
 
 # fc = linear + bn + act + dropout
-def build_fc_layers(dims, act=nn.ReLU(inplace=True), final_act=False, dropout=0.0):
+def build_fc_layers(dims, act=nn.ReLU(inplace=True), dropout=0.0, final_act=False, final_bn=False, final_dropout=False):
     '''
     dropout: float or list of float(s), dropout rate(s) per layer
     '''
+    layers = []
+    n_layers = len(dims) - 1
+    
     # Normalize dropout to list
     if isinstance(dropout, (float, int)):
-        dropout = [dropout] * n
-    assert len(dropout) == n, "Dropout length must match number of layers"
+        dropout = [dropout] * n_layers
+    assert len(dropout) == n_layers, f"Dropout must match number of layers ({n_layers})"
 
-    layers = []
-    n = len(dims) - 1
-    for i in range(n):
-        layers.append(nn.Linear(dims[i], dims[i+1]))
-        layers.append(nn.BatchNorm1d(dims[i+1]))
-        if final_act or i < n - 1:
+    for i in range(n_layers):
+        in_dim, out_dim = dims[i], dims[i + 1]
+        is_last = i == n_layers - 1
+
+        layers.append(nn.Linear(in_dim, out_dim))
+
+        if not is_last or final_bn:
+            layers.append(nn.BatchNorm1d(out_dim))
+        if not is_last or final_act:
             layers.append(act)
         if dropout[i] > 0:
             layers.append(nn.Dropout(dropout[i]))
-    
+
     return nn.Sequential(*layers)
