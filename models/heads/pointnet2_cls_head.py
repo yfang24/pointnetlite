@@ -15,7 +15,7 @@ class PointNet2ClsHead(nn.Module):
         self.drop2 = nn.Dropout(p=dropout)
 
     def forward(self, x):
-        x = F.relu(self.bn1(self.drop1(self.fc1(x))))
-        x = F.relu(self.bn2(self.drop2(self.fc2(x))))
+        x = self.drop1(F.relu(self.bn1(self.fc1(x))))
+        x = self.drop2(F.relu(self.bn2(self.fc2(x))))
         x = self.fc3(x)
         return x
