@@ -37,14 +37,16 @@ class PointNetEncoder(nn.Module):
         self.return_all = return_all
         self.feature_transform = feature_transform
 
+        # Input transformation
         self.input_stn = STNk(in_dim)
         
-        
-        self.conv1 = nn.Conv1d(in_dim, 64, 1)
-        self.bn1 = nn.BatchNorm1d(64)
+        # Shared MLP: input -> 64
+        self.mlp1 = build_shared_mlp([in_dim, hidden_dims[0]], conv_dim=1)
 
-        if feature_transform:
-            self.feature_stn = STNk(64)
+        # Feature transformation
+        if self.feature_transform:
+            self.feature_stn = STNkd(k=64)
+        
 
         self.conv2 = nn.Conv1d(64, 128, 1)
         self.conv3 = nn.Conv1d(128, embed_dim, 1)
