@@ -5,7 +5,7 @@ import torch.nn.functional as F
 from models.modules.builders import build_shared_mlp
 
 class PointNetLiteEncoder(nn.Module):
-    def __init__(self, in_dim=3, hidden_dims=[64, 128], embed_dim=1024, conv_dim=1, act=nn.ReLU(inplace=True), return_all=False):
+    def __init__(self, in_dim=3, embed_dim=1024, hidden_dims=[64, 128], conv_dim=1, act=nn.ReLU(inplace=True), return_all=False):
         """
         conv_dim (int): default=1; set to 2 if working with grouped points (B, G, S, C)
         return_all (bool): If True, return global_feat (B, embed_dim), local_feat (B, N, embed_dim)
