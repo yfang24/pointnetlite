@@ -3,14 +3,14 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 class PointNetLiteEncoder(nn.Module):
-    def __init__(self, in_dim=3):
+    def __init__(self, in_dim=3, embed_dim=1024):
         super().__init__()
         self.conv1 = nn.Conv1d(in_dim, 64, 1)
         self.conv2 = nn.Conv1d(64, 128, 1)
-        self.conv3 = nn.Conv1d(128, 1024, 1)
+        self.conv3 = nn.Conv1d(128, embed_dim, 1)
         self.bn1 = nn.BatchNorm1d(64)
         self.bn2 = nn.BatchNorm1d(128)
-        self.bn3 = nn.BatchNorm1d(1024)
+        self.bn3 = nn.BatchNorm1d(embed_dim)
 
     def forward(self, x):
         x = x.permute(0, 2, 1) # (B, 3, N)
