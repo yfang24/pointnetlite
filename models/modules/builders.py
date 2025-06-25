@@ -1,6 +1,6 @@
 import torch.nn as nn
 
-# shared mlp = conv + bn + act
+# shared mlp_layer = conv + bn + act
 def build_shared_mlp(dims, conv_dim=1, act=nn.ReLU(inplace=True)):
     '''
     conv_dim: default=1; set conv_dim=2 if using grouped points (B, G, S, in_dim)
@@ -14,8 +14,9 @@ def build_shared_mlp(dims, conv_dim=1, act=nn.ReLU(inplace=True)):
         layers += [conv(in_dim, out_dim, 1), bn(out_dim), get_activation(act)]
     return nn.Sequential(*layers)
 
-# fc = linear + bn + act + dropout
-def build_fc_layers(dims, act=nn.ReLU(inplace=True), dropout=0.0, final_act=False, final_bn=False, final_dropout=False):
+# fc_layer = linear + bn + act + dropout
+# final fc = linear (typically)
+def build_fc_layers(dims, act=nn.ReLU(inplace=True), dropout=0.0, final_act=False, final_bn=False):
     '''
     dropout: float or list of float(s), dropout rate(s) per layer
     '''
