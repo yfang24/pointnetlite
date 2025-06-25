@@ -32,19 +32,11 @@ class PointNetLiteEncoder(nn.Module):
         """
         super().__init__()
         self.return_all = return_all
-        self.mlp = build_shared_mlp(hidden_dims + [embed_dim], conv_dim=1, act=act)
+        self.mlp = build_shared_mlp([in_dim] + hidden_dims + [embed_dim], conv_dim=1, act=act)
 
     def forward(self, x):
         """
-        Args:
-            x (Tensor): Input point cloud of shape (B, N, in_dim)
-
-        Returns:
-            If return_all is False:
-                global_feat (Tensor): (B, embed_dim)
-            If return_all is True:
-                global_feat (Tensor): (B, embed_dim)
-                local_feat (Tensor): (B, N, last_hidden_dim)
+        x.shape = (B, N, in_dim)
         """
         x = x.permute(0, 2, 1)  # (B, in_dim, N)
         feat = self.mlp(x)      # (B, embed_dim, N)
