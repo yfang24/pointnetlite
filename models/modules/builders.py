@@ -19,14 +19,14 @@ def build_fc_layers(dims, act=nn.ReLU(inplace=True), final_act=False, dropout=0.
     '''
     dropout: float or list of float(s), dropout rate(s) per layer
     '''
-    layers = []
-
     # Normalize dropout to list
     if isinstance(dropout, (float, int)):
         dropout = [dropout] * n
     assert len(dropout) == n, "Dropout length must match number of layers"
-    
-    for i in range(len(dims) - 1):
+
+    layers = []
+    n = len(dims) - 1
+    for i in range(n):
         layers.append(nn.Linear(dims[i], dims[i+1]))
         layers.append(nn.BatchNorm1d(dims[i+1]))
         if final_act or i < n - 1:
