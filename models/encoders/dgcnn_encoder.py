@@ -6,7 +6,7 @@ from utils.pcd_utils import knn_group, group_points
 
 
 class DGCNNEncoder(nn.Module):
-    def __init__(self, k=20, embed_dim=1024):
+    def __init__(self, k=20, in_dim=3, embed_dim=1024):
         super().__init__()
         self.k = k
         self.embed_dim = embed_dim
