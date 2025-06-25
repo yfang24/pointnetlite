@@ -2,6 +2,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from models.modules.builders import build_shared_mlp
+
 class PointNetLiteEncoder(nn.Module):
     def __init__(self, in_dim=3, embed_dim=1024):
         super().__init__()
