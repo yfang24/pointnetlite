@@ -61,7 +61,7 @@ class PointMAEDecoder(nn.Module):
 
         # Decode
         x_out = self.decoder(x_full, pos_full)                            # (B, G, C)
-        x_rec = self.norm(x_out[:, -center_mask.shape[1]:])               # (B, G_mask, C)
+        x_rec = self.norm(x_out[:, -pos_mask.shape[1]:])               # (B, G_mask, C)
         
         # Predict grouped points
         x_rec = x_rec.transpose(1, 2)                                      # (B, C, G_masked)
