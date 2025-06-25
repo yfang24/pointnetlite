@@ -30,14 +30,16 @@ class STNkd(nn.Module):
 class PointNetEncoder(nn.Module):
     def __init__(self, in_dim=3, embed_dim=1024, hidden_dims=[64, 128], return_all=False, feature_transform=True):
         """
-        return_all (bool): If True, returns both global and per-point features
-        feature_transform (bool): Whether to apply a second STN on features
+        return_all (bool): If True, return global_feat (B, embed_dim), local_feat (B, N, embed_dim)
+        feature_transform (bool): Whether to apply a second STN on 64-dim features
         """
         super().__init__()
-        self.global_feat = global_feat
+        self.return_all = return_all
         self.feature_transform = feature_transform
 
         self.input_stn = STNk(in_dim)
+        
+        
         self.conv1 = nn.Conv1d(in_dim, 64, 1)
         self.bn1 = nn.BatchNorm1d(64)
 
