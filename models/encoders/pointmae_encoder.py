@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 
-from utils.pcd_utils import sample_and_group
+from utils.pcd_utils import fps, knn_group, group_points
 from models.modules.transformer_modules import TransformerEncoder
 
 # encode grouped point cloud using pointnet-like encoder
@@ -107,7 +107,8 @@ class PointMAEEncoder(nn.Module):
         return mask  # (B, G)
    
     def forward(self, point_cloud): # (B, N, 3)
-        neighborhood, center = sample_and_group(point_cloud, self.num_group, self.group_size)  # (B, G, S, 3), (B, G, 3)
+        center = fps(point_cloud, self.num_group)  # (B, G, 3)
+        neighborhood = group_points(point_cloud, idx=knn_group(point_cloud, center, self.group_size))  - center.unsqueeze(2) # (B, G, S, 3
 
         noaug = self.noaug
         if self.mask_type == 'rand':
