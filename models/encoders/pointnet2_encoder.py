@@ -9,10 +9,6 @@ class PointNet2Encoder(nn.Module):
         super().__init__()
         self.use_msg = use_msg
 
-        # mlp_layer: conv2d + bn2d + relu
-        # mlp: stack of mlp_layers
-        # mlp_block: list of mlps
-        
         # Layer configurations
         self.sa1_params = {
             "num_group": 512,
@@ -35,7 +31,9 @@ class PointNet2Encoder(nn.Module):
         self.sa1_mlps = [self._build_mlp(in_dim, mlp) for mlp in self.sa1_params["mlps"]]
         self.sa2_mlps = [self._build_mlp(in_dim + sum(m[-1] for m in self.sa1_params["mlps"]), mlp) for mlp in self.sa2_params["mlps"]]
         self.sa3_mlp = self._build_mlp(in_dim + sum(m[-1] for m in self.sa2_params["mlps"]), self.sa3_mlp_channels)
-        
+
+    # mlp_layer: conv2d + bn2d + relu
+    # mlp: stack of mlp_layers
     def _build_mlp(self, in_dim, mlp_channels):
         layers = []
         for out_dim in mlp_channels:
