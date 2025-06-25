@@ -1,6 +1,7 @@
 import torch.nn as nn
 
-# shared mlp_layer = conv + bn + act
+# shared mlp = conv + bn + act
+# last mlp = conv + bn  (typically)
 def build_shared_mlp(dims, conv_dim=1, act=nn.ReLU(inplace=True)):
     '''
     conv_dim: default=1; set conv_dim=2 if using grouped points (B, G, S, in_dim)
