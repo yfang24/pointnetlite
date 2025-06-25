@@ -52,12 +52,14 @@ class PointNet2Encoder(nn.Module):
         x = neighborhoods.permute(0, 3, 2, 1)  # (B, 3, S, G)
         return torch.cat([mlp(x).max(dim=2)[0] for mlp in mlp_blocks], dim=1)  # (B, C_total, G); max-pooled over groups and concatenated across scales
 
-    def _sa_layer(self, input_points, num_group, radius, group_size, mlp_blocks):
-        centers = fps(input_points, num_group)    
+    def _sa_layer(self, input_points, point_feats, num_group, radius, group_size, mlp_blocks):
+        centers = fps(input_points, num_group)    # (B, G, 3)
         if self.use_msg:
             feats_list = []
             for r, k, mlp in zip(radius, group_size, mlp_blocks):
-                neighborhoods = ball_group(input_points, centers, r, k)
+                neighborhood_points = ball_group(input_points, centers, r, k)  # (B, G, k, 3)
+                if point_feats is not None:
+                    
                 f = mlp(neighborhoods.permute(0, 3, 2, 1))  # (B, C, k, G)
                 f = torch.max(f, dim=2)[0]            # (B, C, G)
                 feats_list.append(f)
@@ -71,7 +73,7 @@ class PointNet2Encoder(nn.Module):
         B, N, _ = x.shape
 
         # SA1
-        features, centers = self._sa_layer(
+        centers, features = self._sa_layer(
             x,
             self.sa1_params["num_group"],
             self.sa1_params["radius"],
@@ -80,8 +82,9 @@ class PointNet2Encoder(nn.Module):
         )
 
         # SA2
-        features, centers = self._sa_layer(
+        centers, features = self._sa_layer(
             centers,
+            features,
             self.sa2_params["num_group"],
             self.sa2_params["radius"],
             self.sa2_params["group_size"],
