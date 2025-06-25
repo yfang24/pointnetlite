@@ -37,11 +37,8 @@ def ball_group(points, centers, radius, nsample):  # nsample=group_size
             else:
                 # pad by repeating first neighbor
                 pad = valid[0].repeat(nsample - valid.numel())
-                idx[b, g] = torch.cat([valid, pad], dim=0)
-
-    neighborhoods = group_points(points, idx)                     # (B, G, S, 3)
-    neighborhoods = neighborhoods - centers.unsqueeze(2)          # center relative
-    return neighborhoods
+                idx[b, g] = torch.cat([valid, pad], dim=0)                
+    return idx
 
 #=====
 #pointmae: fps-knn-group
@@ -74,16 +71,11 @@ def knn_group(points, centers, k):
     '''
     points: (B, N, 3)
     centers: (B, G, 3)
-    returns:
-      - neighborhoods: (B, G, k, 3)
-      - centers: (B, G, 3)
+    returns: (B, G, k)
     '''
     dists = torch.cdist(centers, points)  # (B, G, N)
     idx = dists.topk(k, dim=-1, largest=False)[1]  # (B, G, k)
-
-    neighborhoods = group_points(points, idx)      # (B, G, k, 3)
-    neighborhoods = neighborhoods - centers.unsqueeze(2)
-    return neighborhoods
+    return idx
 
 def group_points(points, idx):
     '''
