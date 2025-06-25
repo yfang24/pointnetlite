@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from utils.pcd_utils import fps, ball_group
+from utils.pcd_utils import fps, ball_group, group_points
 
 class PointNet2Encoder(nn.Module):
     def __init__(self, use_msg=False):
