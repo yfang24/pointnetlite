@@ -7,6 +7,20 @@ class STNkd(nn.Module):
     def __init__(self, k=64):
         super().__init__()
         self.k = k
+
+        self.feat = nn.Sequential(
+            nn.Conv1d(k, 64, 1),
+            nn.BatchNorm1d(64),
+            nn.ReLU(inplace=True),
+            
+            nn.Conv1d(64, 128, 1),
+            nn.BatchNorm1d(128),
+            nn.ReLU(inplace=True),
+            
+            nn.Conv1d(128, 1024, 1),
+            nn.BatchNorm1d(1024),
+            nn.ReLU(inplace=True),
+        )
         self.conv1 = nn.Conv1d(k, 64, 1)
         self.conv2 = nn.Conv1d(64, 128, 1)
         self.conv3 = nn.Conv1d(128, 1024, 1)
