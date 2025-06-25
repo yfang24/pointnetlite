@@ -2,14 +2,11 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from models.modules.builders import build_shared_mlp
+from models.modules.builders import build_shared_mlp, build_fc_layers
 
 # A Spatial Transformer Network (STN) that learns a kxk transformation matrix.
 class STNkd(nn.Module):
     def __init__(self, k=64, act=nn.ReLU(inplace=True), dropout=0.0):
-        """
-        
-        """
         super().__init__()
         self.k = k
 
@@ -22,60 +19,8 @@ class STNkd(nn.Module):
         x = torch.max(x, dim=2)[0]              # (B, 1024)
         x = self.fc(x)                           # (B, k*k)
 
-        iden = torch.eye(self.k, device=x.device).flatten().unsqueeze(0).repeat(B, 1)  # (B, k*k)
-        x = x + iden
-        return x.view(B, self.k, self.k)
-        
-class STNkd(nn.Module):
-    def __init__(self, k=64):
-        super().__init__()
-        self.k = k
-
-        # Shared MLP: input (B, k, N) → (B, 1024, N)
-        self.shared_mlp = build_shared_mlp(k, [64, 128, 1024], use_1d=True)
-
-        
-        self.feat = nn.Sequential(
-            nn.Conv1d(k, 64, 1),
-            nn.BatchNorm1d(64),
-            nn.ReLU(inplace=True),
-            
-            nn.Conv1d(64, 128, 1),
-            nn.BatchNorm1d(128),
-            nn.ReLU(inplace=True),
-            
-            nn.Conv1d(128, 1024, 1),
-            nn.BatchNorm1d(1024),
-            nn.ReLU(inplace=True),
-        )
-        self.conv1 = nn.Conv1d(k, 64, 1)
-        self.conv2 = nn.Conv1d(64, 128, 1)
-        self.conv3 = nn.Conv1d(128, 1024, 1)
-        self.fc1 = nn.Linear(1024, 512)
-        self.fc2 = nn.Linear(512, 256)
-        self.fc3 = nn.Linear(256, k * k)
-
-        self.bn1 = nn.BatchNorm1d(64)
-        self.bn2 = nn.BatchNorm1d(128)
-        self.bn3 = nn.BatchNorm1d(1024)
-        self.bn4 = nn.BatchNorm1d(512)
-        self.bn5 = nn.BatchNorm1d(256)
-       
-        self.relu = nn.ReLU(inplace=True)
-
-    def forward(self, x):
-        B = x.size(0)
-        x = self.relu(self.bn1(self.conv1(x)))
-        x = self.relu(self.bn2(self.conv2(x)))
-        x = self.relu(self.bn3(self.conv3(x)))
-        x = torch.max(x, dim=2, keepdim=True)[0].view(B, -1)
-
-        x = self.relu(self.bn4(self.fc1(x)))
-        x = self.relu(self.bn5(self.fc2(x)))
-        x = self.fc3(x)
-
         # An identity matrix is added to ensure the transformation matrix starts close to the identity.
-        iden = torch.eye(self.k, dtype=torch.float32, device=x.device).flatten().view(1, self.k * self.k).repeat(B, 1)
+        iden = torch.eye(self.k, device=x.device).flatten().unsqueeze(0).repeat(B, 1)  # (B, k*k)
         x = x + iden
         return x.view(B, self.k, self.k)
 
