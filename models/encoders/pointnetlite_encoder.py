@@ -11,11 +11,13 @@ class PointNetLiteEncoder(nn.Module):
         self.bn1 = nn.BatchNorm1d(64)
         self.bn2 = nn.BatchNorm1d(128)
         self.bn3 = nn.BatchNorm1d(embed_dim)
+        self.relu1 = nn.ReLU(inplace=True)
+        self.relu2 = nn.ReLU(inplace=True)
 
     def forward(self, x):
         x = x.permute(0, 2, 1) # (B, 3, N)
-        x = F.relu(self.bn1(self.conv1(x)))
-        x = F.relu(self.bn2(self.conv2(x)))
+        x = self.relu1(self.bn1(self.conv1(x)))
+        x = self.relu2(self.bn2(self.conv2(x)))
         x = self.bn3(self.conv3(x))
         x, _ = torch.max(x, dim=2)
         return x  # (B, 1024)
