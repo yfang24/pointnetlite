@@ -12,7 +12,7 @@ class PointNetLiteEncoder(nn.Module):
         """
         super().__init__()
         self.return_all = return_all
-        self.mlp = build_shared_mlp([in_dim] + hidden_dims + [embed_dim], conv_dim=conv_dim, act=act)
+        self.mlp = build_shared_mlp([in_dim] + hidden_dims + [embed_dim], conv_dim=conv_dim, act=act, final_act=False)
 
     def forward(self, x):   # (B, N, in_dim)
         x = x.permute(0, 2, 1)  # (B, in_dim, N)
