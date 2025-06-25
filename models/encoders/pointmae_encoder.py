@@ -108,7 +108,7 @@ class PointMAEEncoder(nn.Module):
    
     def forward(self, point_cloud): # (B, N, 3)
         center = fps(point_cloud, self.num_group)  # (B, G, 3)
-        neighborhood = group_points(point_cloud, idx=knn_group(point_cloud, center, self.group_size))  - center.unsqueeze(2) # (B, G, S, 3
+        neighborhood = group_points(point_cloud, idx=knn_group(point_cloud, center, self.group_size))  - center.unsqueeze(2) # (B, G, S, 3)
 
         noaug = self.noaug
         if self.mask_type == 'rand':
