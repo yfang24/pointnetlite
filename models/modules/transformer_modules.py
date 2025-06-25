@@ -4,13 +4,13 @@ from timm.layers import DropPath
 
 # feed forward layer in transformer block
 class Mlp(nn.Module):
-    def __init__(self, in_dim, hidden_dims=None, out_dim=None, drop=0.):
+    def __init__(self, in_dim, hidden_dim=None, out_dim=None, drop=0.):
         super().__init__()
-        hidden_dims = hidden_dims or in_dim
+        hidden_dim = hidden_dim or in_dim
         out_dim = out_dim or in_dim
-        self.fc1 = nn.Linear(in_dim, hidden_dims)
+        self.fc1 = nn.Linear(in_dim, hidden_dim)
         self.act = nn.GELU()
-        self.fc2 = nn.Linear(hidden_dims, out_dim)
+        self.fc2 = nn.Linear(hidden_dim, out_dim)
         self.drop = nn.Dropout(drop)
 
     def forward(self, x):
