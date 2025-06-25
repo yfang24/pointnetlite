@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 
-from models.modules.transformer_modules import TransformerDecoder
+from models.modules.transformer_modules import TransformerEncoder
 
 class PointMAEDecoder(nn.Module):
     def __init__(self, embed_dim=384, group_size=32, drop_path=0.1, depth=4, num_heads=6):
@@ -10,19 +10,20 @@ class PointMAEDecoder(nn.Module):
         self.embed_dim = embed_dim
 
         self.mask_token = nn.Parameter(torch.zeros(1, 1, embed_dim))
-        self.decoder_pos_embed = nn.Sequential(
+        self.pos_embed = nn.Sequential(
             nn.Linear(3, 128),
             nn.GELU(),
             nn.Linear(128, embed_dim)
         )
 
         dpr = [x.item() for x in torch.linspace(0, drop_path, depth)]
-        self.decoder = TransformerDecoder(
+        self.decoder = TransformerEncoder(
             embed_dim=embed_dim,
             depth=depth,
             drop_path=dpr,
             num_heads=num_heads,
         )
+        self.norm = nn.LayerNorm(embed_dim)
 
         self.reconstruction_head = nn.Sequential(
             nn.Conv1d(embed_dim, 3 * group_size, 1)  # Predict (S x 3) coordinates per group
@@ -48,8 +49,8 @@ class PointMAEDecoder(nn.Module):
         C = self.embed_dim
 
         # Positional embeddings
-        pos_vis = self.decoder_pos_embed(center[~mask].reshape(B, -1, 3))  # (B, G_visible, C)
-        pos_mask = self.decoder_pos_embed(center[mask].reshape(B, -1, 3))  # (B, G_masked, C)
+        pos_vis = self.pos_embed(center[~mask].reshape(B, -1, 3))  # (B, G_visible, C)
+        pos_mask = self.pos_embed(center[mask].reshape(B, -1, 3))  # (B, G_masked, C)
 
         # Mask token
         mask_token = self.mask_token.expand(B, pos_mask.shape[1], -1)      # (B, G_masked, C)
@@ -59,10 +60,11 @@ class PointMAEDecoder(nn.Module):
         pos_full = torch.cat([pos_vis, pos_mask], dim=1)                   # (B, G, C)
 
         # Decode
-        x_rec = self.decoder(x_full, pos_full, pos_mask.shape[1])          # (B, G_masked, C)
-
+        x_out = self.decoder(x_full, pos_full)                            # (B, G, C)
+        x_rec = self.norm(x_out[:, -center_mask.shape[1]:])               # (B, G_mask, C)
+        
         # Predict grouped points
-        x_rec = x_rec.transpose(1, 2)                                       # (B, C, G_masked)
+        x_rec = x_rec.transpose(1, 2)                                      # (B, C, G_masked)
         pred = self.reconstruction_head(x_rec).transpose(1, 2)             # (B, G_masked, S*3)
         rebuild_points = pred.reshape(-1, self.group_size, 3)              # (B * G_masked, S, 3)
 
