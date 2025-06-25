@@ -11,7 +11,7 @@ def build_shared_mlp(dims, conv_dim=1, act=nn.ReLU(inplace=True)):
     
     layers = []
     for in_dim, out_dim in zip(dims[:-1], dims[1:]):
-        layers += [conv(in_dim, out_dim, 1), bn(out_dim), get_activation(act)]
+        layers += [conv(in_dim, out_dim, 1), bn(out_dim), act]
     return nn.Sequential(*layers)
 
 # fc_layer = linear + bn + act + dropout
