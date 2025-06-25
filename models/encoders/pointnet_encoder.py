@@ -13,8 +13,10 @@ class STNkd(nn.Module):
         self.mlp = build_shared_mlp([k, 64, 128, 1024], conv_dim=1, act=act)
         self.fc = build_fc_layers([1024, 512, 256, k * k], act=act, final_act=False, dropout=dropout)
 
-    def forward(self, x):  # x: (B, k, N)
+    def forward(self, x):  # x: (B, N, k)
         B = x.size(0)
+        
+        x = x.permute(0, 2, 1)  # (B, k, N)        
         x = self.mlp(x)                          # (B, 1024, N)
         x = torch.max(x, dim=2)[0]              # (B, 1024)
         x = self.fc(x)                           # (B, k*k)
@@ -24,12 +26,12 @@ class STNkd(nn.Module):
         x = x + iden
         return x.view(B, self.k, self.k)
 
-'''    
+""" 
 encode point cloud, output local/global features, which are fed into MLP for classification (see pointnet_cls).
 if global_feat=True, only global feat is returned; otherwise, returns a concat of global and local features
-'''
+"""
 class PointNetEncoder(nn.Module):
-    def __init__(self, in_dim=3, embed_dim=1024, global_feat=True, feature_transform=True):
+    def __init__(self, in_dim=3, embed_dim=1024, hidden_dims=[64, 128], global_feat=True, feature_transform=True):
         super().__init__()
         self.global_feat = global_feat
         self.feature_transform = feature_transform
