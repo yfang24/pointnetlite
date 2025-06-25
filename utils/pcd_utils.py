@@ -40,6 +40,7 @@ def ball_group(points, centers, radius, nsample):  # nsample=group_size
                 idx[b, g] = torch.cat([valid, pad], dim=0)                
     return idx
 
+
 #=====
 #pointmae: fps-knn-group
 #=====
@@ -77,7 +78,7 @@ def knn_group(points, centers, k):
     idx = dists.topk(k, dim=-1, largest=False)[1]  # (B, G, k)
     return idx
 
-def group_points(points, idx):
+def index_points(points, idx):
     '''
     points: (B, N, 3)
     idx: (B, G, k)
@@ -89,8 +90,7 @@ def group_points(points, idx):
     idx_base = torch.arange(B, device=points.device).view(B, 1, 1) * N
     idx = idx + idx_base
     idx = idx.view(-1)
-    grouped = points.reshape(B * N, C)[idx, :].view(B, G, K, C)
-    return grouped
+    return points.reshape(B * N, C)[idx, :].view(B, G, K, C)
 
 
 #=====
