@@ -4,7 +4,7 @@ import torch.nn as nn
 from utils.pcd_utils import sample_and_group
 from models.modules.transformer_modules import TransformerEncoder
 
-# encode point cloud to 1024dims using pointnet-like encoder
+# encode grouped point cloud using pointnet-like encoder
 class PointGroupEncoder(nn.Module):
     def __init__(self, embed_dim=1024):
         super().__init__()
