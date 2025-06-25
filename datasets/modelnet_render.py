@@ -89,10 +89,7 @@ class ModelNetRender(Dataset):
                         points = mesh_utils.render_mesh_torch(mesh_torch, camera_pos, num_points=self.num_points, device=self.device)
                         
                         points[:, [0, 2]] *= -1
-                        center = points.mean(dim=0, keepdim=True)
-                        points = points - center
-                        scale = torch.norm(points, dim=1).max()
-                        points = points / scale 
+                        points = pcd_utils.normalize_pcd_tensor(points)
                         
                         data.append(points)
                         labels.append(label)
