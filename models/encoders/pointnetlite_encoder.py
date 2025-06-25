@@ -14,10 +14,7 @@ class PointNetLiteEncoder(nn.Module):
         self.return_all = return_all
         self.mlp = build_shared_mlp([in_dim] + hidden_dims + [embed_dim], conv_dim=conv_dim, act=act)
 
-    def forward(self, x):
-        """
-        x.shape = (B, N, in_dim)
-        """
+    def forward(self, x):   # (B, N, in_dim)
         x = x.permute(0, 2, 1)  # (B, in_dim, N)
         feat = self.mlp(x)      # (B, embed_dim, N)
         global_feat = torch.max(feat, dim=2)[0]  # (B, embed_dim)
