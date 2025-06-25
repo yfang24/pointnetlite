@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from utils.pcd_utils import knn_gather, group_points
+from utils.pcd_utils import knn_group, group_points
 
 
 class DGCNNEncoder(nn.Module):
@@ -44,7 +44,7 @@ class DGCNNEncoder(nn.Module):
         Returns:
             edge_features: (B, 6, N, k)
         """
-        idx = knn_gather(x, x, k)               # (B, N, k); for each point, gather its knn neighbors
+        idx = knn_group(x, x, k)               # (B, N, k); for each point, gather its knn neighbors
         grouped = group_points(x, idx)          # (B, N, k, 3)
         centers = x.unsqueeze(2)                # (B, N, 1, 3)
         edge = torch.cat((grouped - centers, centers.expand_as(grouped)), dim=-1)  # (B, N, k, 6) # for each grouped point, set its group coords + group center as features
