@@ -6,6 +6,24 @@ from models.modules.builders import build_shared_mlp
 
 # A Spatial Transformer Network (STN) that learns a kxk transformation matrix.
 class STNkd(nn.Module):
+    def __init__(self, k=64, act=nn.ReLU(inplace=True), dropout=0.0):
+        super().__init__()
+        self.k = k
+
+        self.mlp = build_shared_mlp([k, 64, 128, 1024], conv_dim=1, act=act)
+        self.fc = build_fc_layers([1024, 512, 256, k * k], act=act, final_act=False, dropout=dropout)
+
+    def forward(self, x):  # x: (B, k, N)
+        B = x.size(0)
+        x = self.mlp(x)                          # (B, 1024, N)
+        x = torch.max(x, dim=2)[0]              # (B, 1024)
+        x = self.fc(x)                           # (B, k*k)
+
+        iden = torch.eye(self.k, device=x.device).flatten().unsqueeze(0).repeat(B, 1)  # (B, k*k)
+        x = x + iden
+        return x.view(B, self.k, self.k)
+        
+class STNkd(nn.Module):
     def __init__(self, k=64):
         super().__init__()
         self.k = k
