@@ -76,7 +76,8 @@ class ModelNetMAERender(Dataset):
             view_idx = np.random.randint(self.num_views)
             idx = obj_idx * self.num_views + view_idx
 
-        return self.data[idx], self.labels[idx]
+        vis_pts, mask_pts, reflected_pts = self.data[idx]
+        return vis_pts, mask_pts, reflected_pts, self.labels[idx]
 
     def _process_and_render(self):
         data, labels = [], []
