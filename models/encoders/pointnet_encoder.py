@@ -46,7 +46,7 @@ class PointNetEncoder(nn.Module):
             self.feature_stn = STNkd(k=64)
         
         # Shared MLP: 64 -> 128 -> embed_dim
-        self.mlp2 = build_shared_mlp([64, 128, embed_dim], conv_dim=1, final_act=False)
+        self.mlp2 = build_shared_mlp(hidden_dims + [embed_dim], conv_dim=1, final_act=False)
           
     def forward(self, x):
         B, N, D = x.shape
