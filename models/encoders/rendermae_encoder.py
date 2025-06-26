@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 
+from utils.pcd_utils import fps, knn_group, group_points
 from models.modules.transformer_modules import TransformerEncoder
 from models.modules.builders import build_shared_mlp
 
@@ -41,13 +42,19 @@ class RenderMAEEncoder(nn.Module):
     # def forward(self, vis_pts):
     def forward(self, x):
         vis_pts, mask_pts, reflected_pts = x
+        
         """
         Args:
             vis_pts: (B, N, 3)
         Returns:
             vis_token: (B, N, D) - encoded visible tokens
         """
-        vis_embed = self.point_encoder(vis_pts)        # (B, N, D)
+        # vis_embed = self.point_encoder(vis_pts)        # (B, N, D)
+
+        centers = fps(vis_pts, M)  # (B, M, 3)
+        grouped_pts = group_points(vis_pts, centers, K=32)  # (B, M, K, 3)
+        vis_embed = self.point_encoder(grouped_pts)  # (B, M, D)
+        
         vis_pos = self.pos_embed(vis_pts)             # (B, N, D)
 
         vis_token = self.blocks(vis_embed, vis_pos)          # (B, N, D)
