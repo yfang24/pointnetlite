@@ -4,7 +4,6 @@ import torch.nn.functional as F
 
 from utils.pcd_utils import knn_group, group_points
 
-
 class DGCNNEncoder(nn.Module):
     def __init__(self, k=20, in_dim=3, embed_dim=1024):
         super().__init__()
