@@ -38,10 +38,10 @@ def main():
     root_dir = Path(__file__).resolve().parent
     exp_dir = root_dir / "experiments" / args.exp_name
     config_path = exp_dir / "config.yaml"
-    checkpoint_path = exp_dir / f"checkpoint_{args.ckpt_type}.pth"
+    ckpt_path = exp_dir / f"checkpoint_{args.ckpt_type}.pth"
 
     assert config_path.exists(), f"Config not found at {config_path}"
-    assert checkpoint_path.exists(), f"Checkpoint not found at {checkpoint_path}"
+    assert ckpt_path.exists(), f"Checkpoint not found at {ckpt_path}"
 
     config = load_config(config_path)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
