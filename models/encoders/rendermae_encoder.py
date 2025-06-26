@@ -42,12 +42,11 @@ class RenderMAEEncoder(nn.Module):
         Args:
             vis_pts: (B, N, 3)
         Returns:
-            x_vis: (B, N, D) - encoded visible tokens
-            mask_pos: (B, N, D) - positional encoding of reflected (masked) points
+            vis_token: (B, N, D) - encoded visible tokens
         """
-        feat_vis = self.point_encoder(vis_pts)        # (B, N, D)
-        pos_vis = self.pos_embed(vis_pts)             # (B, N, D)
+        vis_embed = self.point_encoder(vis_pts)        # (B, N, D)
+        vis_pos = self.pos_embed(vis_pts)             # (B, N, D)
 
-        x_vis = self.blocks(feat_vis, pos_vis)          # (B, N, D)
-        x_vis = self.norm(x_vis)
-        return x_vis
+        vis_token = self.blocks(vis_embed, vis_pos)          # (B, N, D)
+        vis_token = self.norm(vis_token)
+        return vis_token
