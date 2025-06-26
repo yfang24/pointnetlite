@@ -71,7 +71,7 @@ def main():
         head.eval()
         
         with torch.no_grad():
-            for pc, label in test_set:
+            for pc, label in dataset:
                 if isinstance(pc, tuple):                    
                     vis_pts, mask_pts, _ = tuple(t.float().to(device) for t in pc)  # (1, N, 3)
                 else:
