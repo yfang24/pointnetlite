@@ -396,6 +396,7 @@ def pretrain_one_epoch(epoch, encoder, head, dataloader, loss_fn, optimizer, sch
     for batch in tqdm(dataloader, desc="Pretrain", leave=False):
         if isinstance(batch[0], tuple):
             inputs = tuple(t.float().to(device) for t in batch[0])
+            print([t.shape for t in batch[0]])
         else:
             inputs = batch[0].float().to(device)  # (B, N, 3)
         targets = batch[1].long().to(device)       
