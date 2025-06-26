@@ -390,7 +390,6 @@ def random_drop_out(points, max_dropout_ratio=0.875):
             points[dropout_idx] = points[0] # Set dropped points to the first point
             # points[dropout_idx] = points[np.random.choice(points.shape[0], size=dropout_idx.shape, replace=True)] # Set dropped points to a random point
     else:
-        B = points.shape[0] if points.dim() == 2 else 1
         dropout_ratio = torch.rand(1, device=points.device).item() * max_dropout_ratio
         mask = torch.rand(points.shape[0], device=points.device) <= dropout_ratio
         if mask.any():
