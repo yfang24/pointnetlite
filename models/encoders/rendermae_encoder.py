@@ -19,9 +19,8 @@ class PointEncoderMLP(nn.Module):
 
 class RenderMAEEncoder(nn.Module):
     def __init__(self, embed_dim=384, depth=12, drop_path=0.1, num_heads=6, 
-                 group_size=32, num_group=64, noaug=False):  # noaug: whether do masking--False for pretrain, True for finetune
+                 group_size=32, num_group=64):
         super().__init__()
-        self.noaug = noaug
         self.group_size = group_size
         self.num_group = num_group
                      
@@ -42,36 +41,21 @@ class RenderMAEEncoder(nn.Module):
         )
         self.norm = nn.LayerNorm(embed_dim)
 
-    # def forward(self, vis_pts):    
-    #     """
-    #     Args:
-    #         vis_pts: (B, N, 3)
-    #     Returns:
-    #         vis_token: (B, N, D) - encoded visible tokens
-    #     """
-    #     vis_embed = self.point_encoder(vis_pts)        # (B, N, D)
-    #     vis_pos = self.pos_embed(vis_pts)             # (B, N, D)
-
-    #     vis_token = self.blocks(vis_embed, vis_pos)          # (B, N, D)
-    #     vis_token = self.norm(vis_token)
-
-    #     if self.noaug:
-    #         return vis_token
-    #     return vis_token, vis_pts, mask_pts, reflected_pts
+    def forward(self, vis_pts):    
+        """
+        Args:
+            vis_pts: (B, N, 3)
+        Returns:
+            vis_token: (B, G, D) - encoded visible tokens
+        """
+        vis_centers = fps(vis_pts, self.num_group)  # (B, G, 3)
+        vis_groups = group_points(vis_pts, idx=knn_group(vis_pts, centers, self.group_size))  - centers.unsqueeze(2) # (B, G, S, 3)
         
-    def forward(self, x):
-        vis_pts, mask_pts, reflected_pts = x
-        
-        centers = fps(vis_pts, self.num_group)  # (B, G, 3)
-        grouped_pts = group_points(vis_pts, idx=knn_group(vis_pts, centers, self.group_size))  - centers.unsqueeze(2) # (B, G, S, 3)
-        
-        vis_embed = self.point_encoder(grouped_pts)  # (B, G, D)
-        vis_pos = self.pos_embed(centers)
+        vis_embed = self.point_encoder(vis_groups)        # (B, G, D)
+        vis_pos = self.pos_embed(vis_centers)             # (B, G, D)
 
-        vis_token = self.blocks(vis_embed, vis_pos)
+        vis_token = self.blocks(vis_embed, vis_pos)          # (B, G, D)
         vis_token = self.norm(vis_token)
-        
-        if self.noaug:
-            return vis_token
-        return vis_token, centers, mask_pts, reflected_pts
+
+        return vis_token
         
