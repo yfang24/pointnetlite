@@ -6,6 +6,14 @@ import torch.nn as nn
 def build_shared_mlp(dims, conv_dim=1, conv_bias=True, act=nn.ReLU(inplace=True), final_act=False):
     '''
     conv_dim: default=1; set conv_dim=2 if using grouped points (B, G, S, in_dim)
+    to apply:
+        if conv_dim=1:
+            x = x.permute(0, 2, 1)  # (B, in_dim, N)
+            x = self.mlp(x).max(dim=2)[0]  # (B, embed_dim)
+        else:
+            x = x.permute(0, 3, 2, 1)  # (B, C_in, k, G)
+            x = mlp(x).max(dim=2)[0]  # (B, C_out, k, G), max over neighborhood k -> (B, C_out, G) 
+            x = x.permute(0, 2, 1)  # (B, G, C_out)
     '''
     assert conv_dim in [1, 2], "conv_dim must be 1 or 2"
     conv = nn.Conv1d if conv_dim == 1 else nn.Conv2d
