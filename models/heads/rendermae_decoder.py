@@ -56,7 +56,6 @@ class RenderMAEDecoder(nn.Module):
     #     pred_pts = self.rec_head(pred_mask).transpose(1, 2)  # (B, N_mask, 3)
 
     #     return pred_pts
-        return pred_pts, mask_pts
         
     def forward(self, x):
         vis_token, vis_centers, mask_pts, reflected_pts = x
