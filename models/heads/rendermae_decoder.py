@@ -4,72 +4,54 @@ import torch.nn as nn
 from models.modules.transformer_modules import TransformerEncoder
 from models.modules.builders import build_shared_mlp
 
-class PointMAEDecoder(nn.Module):
-    def __init__(self, embed_dim=384, group_size=32, drop_path=0.1, depth=4, num_heads=6):
+class RenderMAEDecoder(nn.Module):
+    def __init__(self, embed_dim=384, depth=4, drop_path=0.1, num_heads=6, out_dim=3):
         super().__init__()
-        self.group_size = group_size
-        self.embed_dim = embed_dim
 
         self.mask_token = nn.Parameter(torch.zeros(1, 1, embed_dim))
+        nn.init.trunc_normal_(self.mask_token, std=0.02)
+
         self.pos_embed = nn.Sequential(
             nn.Linear(3, 128),
             nn.GELU(),
-            nn.Linear(128, embed_dim)
+            nn.Linear(128, embed_dim),
         )
 
         dpr = [x.item() for x in torch.linspace(0, drop_path, depth)]
-        self.decoder = TransformerEncoder(
+        self.blocks = TransformerEncoder(
             embed_dim=embed_dim,
             depth=depth,
-            drop_path=dpr,
+            drop_path_rate=dpr,
             num_heads=num_heads,
         )
         self.norm = nn.LayerNorm(embed_dim)
 
-        self.reconstruction_head = nn.Sequential(
-            nn.Conv1d(embed_dim, 3 * group_size, 1)  # Predict (S x 3) coordinates per group
-        )
+        self.rec_head = build_shared_mlp([embed_dim, 256, 128, out_dim], conv_dim=1)
 
-        nn.init.trunc_normal_(self.mask_token, std=0.02)
-
-    def forward(self, x):
+    def forward(self, vis_token, vis_pts, reflected_pts):
         """
-        x: encoder output; a tuple of
-            x_vis: (B, G_visible, C)        
-            mask: (B, G) boolean mask
-            neighborhood: (B, G, S, 3) - ground truth grouped points
-            center: (B, G, 3)
-        ------------------------------------------
-        returns:
-            - rebuilt_points: (B * G_masked, S, 3)
-            - gt_points: (B * G_masked, S, 3)
+        Args:
+            vis_token: (B, N_visible, D) - encoded visible tokens
+            vis_pts: (B, N_visible, 3) - input visible points (for position encoding)
+            reflected_pts: (B, N_mask, 3) - reflected visible points (for mask position encoding)
+        Returns:
+            pred_pts: (B, N_mask, 3) - reconstructed masked points
         """
-        x_vis, mask, neighborhood, center = x
+        B, N_mask, _ = reflected_pts.shape
+        D = vis_token.shape[-1]
+
+        vis_pos = self.pos_embed(vis_pts)             # (B, N_visible, D)
+        mask_pos = self.pos_embed(reflected_pts)      # (B, N_mask, D)        
+        mask_token = self.mask_token.expand(B, N_mask, D)  # (B, N_mask, D)
         
-        B, G, S, _ = neighborhood.shape
-        C = self.embed_dim
+        x_full = torch.cat([vis_token, mask_token], dim=1)   # (B, N_all, D)
+        pos_full = torch.cat([vis_pos, mask_pos], dim=1)     # (B, N_all, D)
 
-        # Positional embeddings
-        pos_vis = self.pos_embed(center[~mask].reshape(B, -1, 3))  # (B, G_visible, C)
-        pos_mask = self.pos_embed(center[mask].reshape(B, -1, 3))  # (B, G_masked, C)
+        x = self.blocks(x_full, pos_full)                    # (B, N_all, D)
+        x = self.norm(x)
 
-        # Mask token
-        mask_token = self.mask_token.expand(B, pos_mask.shape[1], -1)      # (B, G_masked, C)
+        pred_mask = x[:, -N_mask:, :]                        # (B, N_mask, D)
+        pred_mask = pred_mask.transpose(1, 2)                # (B, D, N_mask)
+        pred_pts = self.rec_head(pred_mask).transpose(1, 2)  # (B, N_mask, 3)
 
-        # Concat visible + masked
-        x_full = torch.cat([x_vis, mask_token], dim=1)                     # (B, G, C)
-        pos_full = torch.cat([pos_vis, pos_mask], dim=1)                   # (B, G, C)
-
-        # Decode
-        x_out = self.decoder(x_full, pos_full)                            # (B, G, C)
-        x_rec = self.norm(x_out[:, -pos_mask.shape[1]:])               # (B, G_mask, C)
-        
-        # Predict grouped points
-        x_rec = x_rec.transpose(1, 2)                                      # (B, C, G_masked)
-        pred = self.reconstruction_head(x_rec).transpose(1, 2)             # (B, G_masked, S*3)
-        rebuild_points = pred.reshape(-1, self.group_size, 3)              # (B * G_masked, S, 3)
-
-        # Ground truth masked points
-        gt_points = neighborhood[mask].reshape(-1, S, 3)                    # (B * G_masked, S, 3)
-
-        return rebuild_points, gt_points
+        return pred_pts
