@@ -6,7 +6,7 @@ from models.modules.builders import build_shared_mlp
 from utils.pcd_utils import fps, knn_group, group_points
 
 class RenderMAEDecoder(nn.Module):
-    def __init__(self, embed_dim=384, depth=4, drop_path=0.1, num_heads=6, out_dim=3, group_size=32):
+    def __init__(self, embed_dim=384, depth=4, drop_path=0.1, num_heads=6, group_size=32):
         super().__init__()
         self.group_size = group_size
 
@@ -28,13 +28,18 @@ class RenderMAEDecoder(nn.Module):
         )
         self.norm = nn.LayerNorm(embed_dim)
         
-        self.rec_head = build_shared_mlp([embed_dim, 256, 128, out_dim], conv_dim=1)
+        # self.rec_head = build_shared_mlp([embed_dim, 256, 128, out_dim], conv_dim=1)
+        self.rec_head = nn.Sequential(
+            nn.Conv1d(embed_dim, 3 * group_size, 1)  # Predict (S x 3) coordinates per group
+        )
 
     def forward(self, vis_token, vis_centers, mask_pts):
         B, G, D = vis_token.shape
-
+        S = self.group_size
+        
         mask_centers = fps(mask_pts, G)  # (B, G, 3)
-        mask_group = group_points(mask_pts, idx=knn_group(mask_pts, mask_centers, self.group_size))  - mask_centers.unsqueeze(2) # (B, G, S, 3)
+        mask_group = group_points(mask_pts, idx=knn_group(mask_pts, mask_centers, S))  - mask_centers.unsqueeze(2) # (B, G, S, 3)
+        mask_group = mask_group.reshape(-1, S, 3)  # (B*G, S, 3)
         
         vis_pos = self.pos_embed(vis_centers)        
         mask_pos = self.pos_embed(mask_centers)
@@ -48,5 +53,7 @@ class RenderMAEDecoder(nn.Module):
 
         pred_embed = full_embed[:, -G:, :]  # (B, G, D)
         pred_embed = pred_embed.transpose(1, 2)
-        pred_group = self.rec_head(pred_embed).transpose(1, 2)  # (B, G, 3)
+        pred_group = self.rec_head(pred_embed).transpose(1, 2)  # (B, G, S*3)
+        pred_group = pred_group.reshape(-1, S, 3)  # (B*G, S, 3)
+        
         return pred_group, mask_group
