@@ -63,7 +63,7 @@ class RenderMAEEncoder(nn.Module):
         vis_pts, mask_pts, reflected_pts = x
         
         centers = fps(vis_pts, self.num_group)  # (B, G, 3)
-        grouped_pts = group_points(point_cloud, idx=knn_group(point_cloud, center, self.group_size))  - center.unsqueeze(2) # (B, G, S, 3)
+        grouped_pts = group_points(vis_pts, idx=knn_group(vis_pts, centers, self.group_size))  - centers.unsqueeze(2) # (B, G, S, 3)
         
         vis_embed = self.point_encoder(grouped_pts)  # (B, G, D)
         vis_pos = self.pos_embed(centers)
@@ -73,5 +73,5 @@ class RenderMAEEncoder(nn.Module):
         
         if self.noaug:
             return vis_token
-        return vis_token, grouped_pts, centers, mask_pts, reflected_pts
+        return vis_token, centers, mask_pts, reflected_pts
         
