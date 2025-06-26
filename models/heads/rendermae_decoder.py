@@ -29,7 +29,9 @@ class RenderMAEDecoder(nn.Module):
         self.rec_head = build_shared_mlp([embed_dim, 256, 128, out_dim], conv_dim=1)
 
     # def forward(self, vis_token, vis_pts, reflected_pts):
-    def forward(self, vis_token, vis_pts, mask_pts, reflected_pts):
+    def forward(self, x):
+        vis_token, vis_pts, mask_pts, reflected_pts = x
+        
         """
         Args:
             vis_token: (B, N_visible, D) - encoded visible tokens
