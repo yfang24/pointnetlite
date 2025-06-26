@@ -3,7 +3,11 @@ from thop import profile
 
 def get_model_profile(model, input_tensor):
     model.eval()
-    model.to(input_tensor.device)
+    
+    if isinstance(input_tensor, tuple):  # for modelnet_mae_render
+        model.to(input_tensor[0].device)
+    else:
+        model.to(input_tensor.device)
     
     with torch.no_grad():
         macs, params = profile(model, inputs=(input_tensor,), verbose=False)
