@@ -93,6 +93,27 @@ def get_scheduler(config, optimizer):
     else:
         raise ValueError(f"Unsupported scheduler type: {sched_type}")
 
+def smart_collate_fn(batch):  # for modelnet_mae_render
+    """
+    Handles:
+    - (points, label)
+    - ((vis_pts, mask_pts, reflected_pts), label)
+    Returns:
+    - batch[0]: Tensor or tuple of Tensors
+    - batch[1]: label (Tensor)
+    """
+    from torch.utils.data._utils.collate import default_collate
+
+    data, labels = zip(*batch)
+
+    # case: flat tuple like (vis_pts, mask_pts, reflected_pts)
+    if isinstance(data[0], tuple):
+        data = tuple(default_collate(samples) for samples in zip(*data))
+    else:
+        data = default_collate(data)
+
+    labels = default_collate(labels)
+    return data, labels
 
 #=====================
 # train
@@ -108,14 +129,10 @@ def train_one_epoch(epoch, encoder, head, dataloader, loss_fn, optimizer, schedu
     total = 0
 
     for batch in tqdm(dataloader, desc="Train", leave=False):
-        if isinstance(batch[0], tuple): # for modelnet_mae_render
-            # Unpack list of 3-tuples
-            vis_pts       = torch.stack([x[0] for x in batch[0]]).float().to(device)
-            mask_pts      = torch.stack([x[1] for x in batch[0]]).float().to(device)
-            reflected_pts = torch.stack([x[2] for x in batch[0]]).float().to(device)
-            inputs = tuple(vis_pts, mask_pts, reflected_pts)
+        if isinstance(batch[0], tuple):
+            inputs = tuple(t.float().to(device) for t in batch[0])
         else:
-            inputs = batch[0].float().to(device)  # (B, N, 3)
+            inputs = batch[0].float().to(device)  # (B, N, 3)        
         targets = batch[1].long().to(device)
 
         optimizer.zero_grad()
@@ -160,12 +177,8 @@ def evaluate(encoder, head, dataloader, loss_fn, device, logger=None, rotation_v
     
     with torch.no_grad():
         for batch in tqdm(dataloader, desc="Eval", leave=False):          
-            if isinstance(batch[0], tuple): # for modelnet_mae_render
-                # Unpack list of 3-tuples
-                vis_pts       = torch.stack([x[0] for x in batch[0]]).float().to(device)
-                mask_pts      = torch.stack([x[1] for x in batch[0]]).float().to(device)
-                reflected_pts = torch.stack([x[2] for x in batch[0]]).float().to(device)
-                inputs = tuple(vis_pts, mask_pts, reflected_pts)
+            if isinstance(batch[0], tuple):
+                inputs = tuple(t.float().to(device) for t in batch[0])
             else:
                 inputs = batch[0].float().to(device)  # (B, N, 3)
             targets = batch[1].long().to(device)
@@ -264,11 +277,11 @@ def run_training(rank, world_size, local_rank, config, config_path, device, use_
 
     train_loader = DataLoader(
         train_set, batch_size=batch_size, shuffle=shuffle, sampler=train_sampler,
-        num_workers=num_workers, drop_last=True
+        num_workers=num_workers, drop_last=True, collate_fn=smart_collate_fn
     )
     test_loader = DataLoader(
         test_set, batch_size=batch_size, shuffle=False,
-        num_workers=num_workers
+        num_workers=num_workers, collate_fn=smart_collate_fn
     )
 
     # Model
@@ -381,12 +394,8 @@ def pretrain_one_epoch(epoch, encoder, head, dataloader, loss_fn, optimizer, sch
     total = 0
 
     for batch in tqdm(dataloader, desc="Pretrain", leave=False):
-        if isinstance(batch[0], tuple): # for modelnet_mae_render
-            # Unpack list of 3-tuples
-            vis_pts       = torch.stack([x[0] for x in batch[0]]).float().to(device)
-            mask_pts      = torch.stack([x[1] for x in batch[0]]).float().to(device)
-            reflected_pts = torch.stack([x[2] for x in batch[0]]).float().to(device)
-            inputs = tuple(vis_pts, mask_pts, reflected_pts)
+        if isinstance(batch[0], tuple):
+            inputs = tuple(t.float().to(device) for t in batch[0])
         else:
             inputs = batch[0].float().to(device)  # (B, N, 3)
         targets = batch[1].long().to(device)       
@@ -428,12 +437,8 @@ def pretrain_evaluate(encoder, head, dataloader, loss_fn, device, logger=None):
 
     with torch.no_grad():
         for batch in tqdm(dataloader, desc="Val", leave=False):            
-            if isinstance(batch[0], tuple): # for modelnet_mae_render
-                # Unpack list of 3-tuples
-                vis_pts       = torch.stack([x[0] for x in batch[0]]).float().to(device)
-                mask_pts      = torch.stack([x[1] for x in batch[0]]).float().to(device)
-                reflected_pts = torch.stack([x[2] for x in batch[0]]).float().to(device)
-                inputs = tuple(vis_pts, mask_pts, reflected_pts)
+            if isinstance(batch[0], tuple):
+                inputs = tuple(t.float().to(device) for t in batch[0])
             else:
                 inputs = batch[0].float().to(device)  # (B, N, 3)
             targets = batch[1].long().to(device)
@@ -493,8 +498,8 @@ def run_pretraining(rank, world_size, local_rank, config, config_path, device, u
         shuffle = True
 
     train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=shuffle, sampler=train_sampler,
-                              num_workers=num_workers, drop_last=True)
-    val_loader = DataLoader(val_set, batch_size=batch_size, shuffle=False, num_workers=num_workers)
+                              num_workers=num_workers, drop_last=True, collate_fn=smart_collate_fn)
+    val_loader = DataLoader(val_set, batch_size=batch_size, shuffle=False, num_workers=num_workers, collate_fn=smart_collate_fn)
 
     # Model
     encoder = get_encoder(config).to(device)
@@ -611,11 +616,11 @@ def run_finetuning(rank, world_size, local_rank, config, config_path, device, us
 
     train_loader = DataLoader(
         train_set, batch_size=batch_size, shuffle=shuffle, sampler=train_sampler,
-        num_workers=num_workers, drop_last=True
+        num_workers=num_workers, drop_last=True, collate_fn=smart_collate_fn
     )
     test_loader = DataLoader(
         test_set, batch_size=batch_size, shuffle=False,
-        num_workers=num_workers
+        num_workers=num_workers, collate_fn=smart_collate_fn
     )
 
     # Model
