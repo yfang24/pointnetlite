@@ -3,7 +3,7 @@ import torch.nn as nn
 
 # shared mlp = conv + bn + act
 # last mlp = conv + bn  (typically)
-def build_shared_mlp(dims, conv_dim=1, act=nn.ReLU(inplace=True), final_act=False):
+def build_shared_mlp(dims, conv_dim=1, conv_bias=True, act=nn.ReLU(inplace=True), final_act=False):
     '''
     conv_dim: default=1; set conv_dim=2 if using grouped points (B, G, S, in_dim)
     '''
@@ -18,7 +18,7 @@ def build_shared_mlp(dims, conv_dim=1, act=nn.ReLU(inplace=True), final_act=Fals
         in_dim, out_dim = dims[i], dims[i + 1]
         is_last = i == n_layers - 1
 
-        layers.append(conv(in_dim, out_dim, kernel_size=1))
+        layers.append(conv(in_dim, out_dim, kernel_size=1, bias=conv_bias))
         layers.append(bn(out_dim))
         if not is_last or final_act:
             layers.append(act)
