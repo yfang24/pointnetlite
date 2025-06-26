@@ -97,7 +97,7 @@ def main():
                 gt_pts = mask_group.unsqueeze(0) + mask_centers.unsqueeze(2)
                 gt_pts = gt_pts.reshape(-1, 3).cpu().numpy()
 
-                viz_pcds.extend([vis_pts, rec_pts, gt_pts])
+                viz_pcds.append([vis_pts, rec_pts, gt_pts])
                 
                 class_name = inv_class_map[label]
                 viz_class_names.append(class_name)
@@ -105,7 +105,10 @@ def main():
                 shown.add(label)
                 if len(shown) >= num_viz:
                     break
-                    
+
+        vis_all, rec_all, gt_all = zip(*viz_pcds)
+        viz_pcds = vis_all + rec_all + gt_all
+        
         print(f"\n[Visualization Summary]")
         print(f"- Each column is a single object from classes: {viz_class_names}")
         print(f"- Row 1: Visible")
