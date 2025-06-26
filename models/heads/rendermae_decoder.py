@@ -6,8 +6,9 @@ from models.modules.builders import build_shared_mlp
 from utils.pcd_utils import fps
 
 class RenderMAEDecoder(nn.Module):
-    def __init__(self, embed_dim=384, depth=4, drop_path=0.1, num_heads=6, out_dim=3):
+    def __init__(self, embed_dim=384, depth=4, drop_path=0.1, num_heads=6, out_dim=3, group_size=32):
         super().__init__()
+        self.group_size = group_size
 
         self.mask_token = nn.Parameter(torch.zeros(1, 1, embed_dim))
         nn.init.trunc_normal_(self.mask_token, std=0.02)
@@ -57,25 +58,23 @@ class RenderMAEDecoder(nn.Module):
 
     #     return pred_pts
         
-    def forward(self, x):
-        vis_token, vis_centers, mask_pts, reflected_pts = x
-
+    def forward(self, vis_token, vis_centers, mask_pts):
         B, G, D = vis_token.shape
 
-        gt_centers = fps(mask_pts, G)
-        mask_centers = fps(reflected_pts, G)
+        mask_centers = fps(mask_pts, G)  # (B, G, 3)
+        mask_group = group_points(mask_pts, idx=knn_group(mask_pts, mask_centers, self.group_size))  - mask_centers.unsqueeze(2) # (B, G, S, 3)
         
         vis_pos = self.pos_embed(vis_centers)        
         mask_pos = self.pos_embed(mask_centers)
-        pos_full = torch.cat([vis_pos, mask_pos], dim=1)
+        full_pos = torch.cat([vis_pos, mask_pos], dim=1)  # (B, 2G, D)
 
         mask_token = self.mask_token.expand(B, G, D)
-        x_full = torch.cat([vis_token, mask_token], dim=1)
+        full_token = torch.cat([vis_token, mask_token], dim=1)
 
-        x = self.blocks(x_full, pos_full)
-        x = self.norm(x)
+        full_embed = self.blocks(full_token, full_pos)   # (B, 2G, D)
+        full_embed = self.norm(full_embed)
 
-        pred_mask = x[:, -G:, :]
-        pred_mask = pred_mask.transpose(1, 2)
-        pred_centers = self.rec_head(pred_mask).transpose(1, 2)
-        return pred_centers, gt_centers
+        pred_embed = full_embed[:, -G:, :]  # (B, G, D)
+        pred_embed = pred_embed.transpose(1, 2)
+        pred_group = self.rec_head(pred_embed).transpose(1, 2)  # (B, G, 3)
+        return pred_group, mask_group
