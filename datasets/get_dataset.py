@@ -2,6 +2,7 @@ from pathlib import Path
 
 from datasets.modelnet import ModelNet
 from datasets.modelnet_render import ModelNetRender
+from datasets.modelnet_mae_render import ModelNetMAERender
 from datasets.modelnet_scan import ModelNetScan
 from datasets.scanobjectnn import ScanObjectNN
 from datasets.wrappers.rotate_wrapper import RotateWrapper
@@ -23,6 +24,7 @@ CLASS_MAPS = {
 DATASET_REGISTRY = {
     "modelnet": ModelNet,
     "modelnet_render": ModelNetRender,
+    "modelnet_mae_render": ModelNetMAERender,
     "modelnet_scan": ModelNetScan,
     "scanobjectnn": ScanObjectNN
 }
