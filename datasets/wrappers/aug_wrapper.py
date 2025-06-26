@@ -19,8 +19,7 @@ class AugWrapper(Dataset):
     def __len__(self):
         return len(self.base_dataset)
 
-    def __getitem__(self, idx):
-        points, label = self.base_dataset[idx]
+    def _augment(self, points):
         points = pcd_utils.random_drop_out(points)
         if self.apply_scale:
             points = pcd_utils.random_scale(points)
@@ -29,4 +28,24 @@ class AugWrapper(Dataset):
         points = pcd_utils.rotate_perturb(points)
         points = pcd_utils.random_shift(points)
         points = pcd_utils.jitter(points)
-        return points, label
+        return points
+        
+    # def __getitem__(self, idx):
+    #     points, label = self.base_dataset[idx]
+    #     return points, label
+
+    def __getitem__(self, idx):
+        data = self.base_dataset[idx]
+
+        # case: ((vis_pts, reflected_pts), mask_pts)
+        if isinstance(data, tuple) and isinstance(data[0], tuple):
+            (vis_pts, reflected_pts), mask_pts = data
+            vis_pts = self._augment(vis_pts)
+            reflected_pts = self._augment(reflected_pts)
+            return (vis_pts, reflected_pts), mask_pts
+
+        # fallback: (points, label)
+        else:
+            points, label = data
+            points = self._augment(points)
+            return points, label
