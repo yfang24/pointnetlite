@@ -49,7 +49,7 @@ class RenderMAEEncoder(nn.Module):
             vis_token: (B, G, D) - encoded visible tokens
         """
         vis_centers = fps(vis_pts, self.num_group)  # (B, G, 3)
-        vis_groups = group_points(vis_pts, idx=knn_group(vis_pts, centers, self.group_size))  - centers.unsqueeze(2) # (B, G, S, 3)
+        vis_groups = group_points(vis_pts, idx=knn_group(vis_pts, vis_centers, self.group_size))  - vis_centers.unsqueeze(2) # (B, G, S, 3)
         
         vis_embed = self.point_encoder(vis_groups)        # (B, G, D)
         vis_pos = self.pos_embed(vis_centers)             # (B, G, D)
@@ -57,5 +57,5 @@ class RenderMAEEncoder(nn.Module):
         vis_token = self.blocks(vis_embed, vis_pos)          # (B, G, D)
         vis_token = self.norm(vis_token)
 
-        return vis_token
+        return vis_token, vis_centers
         
