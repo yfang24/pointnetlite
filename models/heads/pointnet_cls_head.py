@@ -9,4 +9,4 @@ class PointNetClsHead(nn.Module):
         self.fc = build_fc_layers([embed_dim] + hidden_dims + [out_dim], linear_bias=True, act=nn.ReLU(inplace=True), dropout=dropout)
 
     def forward(self, x):
-        return self.fc(x[0]), x[1:]
+        return self.fc(x)
