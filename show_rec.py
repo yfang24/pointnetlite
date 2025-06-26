@@ -14,7 +14,7 @@ from models.losses.get_loss import get_loss
 from utils.train_utils import evaluate, pretrain_evaluate
 from utils.checkpoint_utils import load_checkpoint
 from utils.pcd_utils import init_pcd, viz_pcd
-from utils.pcd_utils import fps
+from utils.pcd_utils import fps, knn_group, group_points
 
 def main():    
     parser = argparse.ArgumentParser()
@@ -83,14 +83,18 @@ def main():
                     continue
 
                 vis_token, vis_centers = encoder(vis_pts)
-                rec_group, mask_group = head(vis_token, vis_centers, mask_pts)
-           
-                vis_pts = vis_pts.reshape(-1, 3).cpu().numpy() # (G_visible * S, 3)
-                gt_pts = mask_pts.reshape(-1, 3).cpu().numpy()
+                rec_group, mask_group = head(vis_token, vis_centers, mask_pts)  # (G, S, 3)
 
-                mask_centers = fps(mask_pts, rec_group.size(1))  # (B, G, 3)
-                rec_pts = rec_group + mask_centers.unsqueeze(2)
-                rec_pts = rec_pts.reshape(-1, 3).cpu().numpy() # # (G_masked * S, 3)               
+                vis_centers = fps(vis_pts, rec_group.size(1)) 
+                vis_pts = group_points(vis_pts.clone(), idx=knn_group(vis_pts.clone(), vis_centers, S))
+                vis_pts = vis_pts.reshape(-1, 3).cpu().numpy() # (G * S, 3)
+                
+                mask_centers = fps(mask_pts, rec_group.size(1))  # (1, G, 3)
+                rec_pts = rec_group.unsqueeze(0) + mask_centers.unsqueeze(2) # (1, G, S, 3)
+                rec_pts = rec_pts.reshape(-1, 3).cpu().numpy() # (G * S, 3)   
+
+                gt_pts = mask_group.unsqueeze(0) + mask_centers.unsqueeze(2)
+                gt_pts = gt_pts.reshape(-1, 3).cpu().numpy()
 
                 viz_pcds.extend([vis_pts, rec_pts, gt_pts])
                 
