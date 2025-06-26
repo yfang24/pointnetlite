@@ -1,3 +1,4 @@
+import torch
 import torch.nn as nn
 
 # shared mlp = conv + bn + act
