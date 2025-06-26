@@ -32,20 +32,18 @@ class AugWrapper(Dataset):
         
     # def __getitem__(self, idx):
     #     points, label = self.base_dataset[idx]
+    #     points = self._augment(points)
     #     return points, label
 
     def __getitem__(self, idx):
-        data = self.base_dataset[idx]
+        data, label = self.base_dataset[idx]
 
-        # case: ((vis_pts, reflected_pts), mask_pts)
-        if isinstance(data, tuple) and isinstance(data[0], tuple):
-            (vis_pts, reflected_pts), mask_pts = data
-            vis_pts = self._augment(vis_pts)
-            reflected_pts = self._augment(reflected_pts)
-            return (vis_pts, reflected_pts), mask_pts
+        # for modelnet_mae_render
+        if isinstance(data, tuple):
+            aug_tuple = tuple(self._augment(p) for p in data)
+            return aug_tuple, label
 
         # fallback: (points, label)
         else:
-            points, label = data
-            points = self._augment(points)
-            return points, label
+            data = self._augment(data)
+            return data, label
