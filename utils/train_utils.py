@@ -161,7 +161,11 @@ def evaluate(encoder, head, dataloader, loss_fn, device, logger=None, rotation_v
     with torch.no_grad():
         for batch in tqdm(dataloader, desc="Eval", leave=False):          
             if isinstance(batch[0], tuple): # for modelnet_mae_render
-                inputs = tuple(t.float().to(device) for t in batch[0])
+                # Unpack list of 3-tuples
+                vis_pts       = torch.stack([x[0] for x in batch[0]]).float().to(device)
+                mask_pts      = torch.stack([x[1] for x in batch[0]]).float().to(device)
+                reflected_pts = torch.stack([x[2] for x in batch[0]]).float().to(device)
+                inputs = tuple(vis_pts, mask_pts, reflected_pts)
             else:
                 inputs = batch[0].float().to(device)  # (B, N, 3)
             targets = batch[1].long().to(device)
@@ -378,9 +382,14 @@ def pretrain_one_epoch(epoch, encoder, head, dataloader, loss_fn, optimizer, sch
 
     for batch in tqdm(dataloader, desc="Pretrain", leave=False):
         if isinstance(batch[0], tuple): # for modelnet_mae_render
-            inputs = tuple(t.float().to(device) for t in batch[0])
+            # Unpack list of 3-tuples
+            vis_pts       = torch.stack([x[0] for x in batch[0]]).float().to(device)
+            mask_pts      = torch.stack([x[1] for x in batch[0]]).float().to(device)
+            reflected_pts = torch.stack([x[2] for x in batch[0]]).float().to(device)
+            inputs = tuple(vis_pts, mask_pts, reflected_pts)
         else:
-            inputs = batch[0].float().to(device)  # (B, N, 3)        
+            inputs = batch[0].float().to(device)  # (B, N, 3)
+        targets = batch[1].long().to(device)       
 
         optimizer.zero_grad()
         pred, target = head(encoder(inputs))
@@ -418,7 +427,7 @@ def pretrain_evaluate(encoder, head, dataloader, loss_fn, device, logger=None):
     total = 0
 
     with torch.no_grad():
-        for batch in tqdm(dataloader, desc="Val", leave=False):
+        for batch in tqdm(dataloader, desc="Val", leave=False):            
             if isinstance(batch[0], tuple): # for modelnet_mae_render
                 # Unpack list of 3-tuples
                 vis_pts       = torch.stack([x[0] for x in batch[0]]).float().to(device)
@@ -427,6 +436,7 @@ def pretrain_evaluate(encoder, head, dataloader, loss_fn, device, logger=None):
                 inputs = tuple(vis_pts, mask_pts, reflected_pts)
             else:
                 inputs = batch[0].float().to(device)  # (B, N, 3)
+            targets = batch[1].long().to(device)
 
             pred, target = head(encoder(inputs))
 
