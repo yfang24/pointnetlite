@@ -107,7 +107,7 @@ def main():
                     break
 
         vis_all, rec_all, gt_all = zip(*viz_pcds)
-        viz_pcds = vis_all + rec_all + gt_all
+        viz_pcds = list(vis_all + rec_all + gt_all)
         
         print(f"\n[Visualization Summary]")
         print(f"- Each column is a single object from classes: {viz_class_names}")
