@@ -82,11 +82,14 @@ def main():
                     continue
 
                 vis_token, vis_centers = encoder(vis_pts)
-                rec, gt = head(vis_token, vis_centers, mask_pts)
-            
+                rec_group, mask_group = head(vis_token, vis_centers, mask_pts)
+           
                 vis_pts = vis_pts.reshape(-1, 3).cpu().numpy() # (G_visible * S, 3)
-                rec_pts = rec.reshape(-1, 3).cpu().numpy() # # (G_masked * S, 3)
-                gt_pts = gt.reshape(-1, 3).cpu().numpy()
+                gt_pts = mask_pts.reshape(-1, 3).cpu().numpy()
+
+                mask_centers = fps(mask_pts, G)  # (B, G, 3)
+                rec_pts = rec_group + mask_centers.unsqueeze(2)
+                rec_pts = rec_pts.reshape(-1, 3).cpu().numpy() # # (G_masked * S, 3)               
 
                 viz_pcds.extend([vis_pts, rec_pts, gt_pts])
                 
