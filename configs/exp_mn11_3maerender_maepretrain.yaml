@@ -1,0 +1,57 @@
+train_dataset: 
+  name: modelnet_mae_render
+  args:
+    root_dir: modelnet40_manually_aligned
+    class_map: modelnet11
+    split: train
+    num_views: 3
+    single_view: false
+  transform:
+    - name: aug
+      args:
+        apply_scale: true
+        apply_rotation: true
+
+val_dataset: 
+  name: modelnet_mae_render
+  args:
+    root_dir: modelnet40_manually_aligned
+    class_map: modelnet11
+    split: test
+    num_views: 3
+    single_view: false
+
+test_dataset: 
+  name: scanobjectnn
+  args:
+    root_dir: main_split_nobg
+    class_map: scanobjectnn11
+    split: test
+    normalize: true
+
+encoder: 
+  name: rendermae_encoder
+  args:
+    noaug: false
+
+head: 
+  name: rendermae_decoder
+  args: {}
+
+loss: chamfer_distance_l2
+
+optimizer:
+  name: adamw
+  args:
+    lr: 0.001
+    weight_decay: 0.05
+    
+scheduler:
+  name: coslr
+  args:
+    initial_epochs: 10
+    
+epochs: 300
+batch_size: 128
+ddp: false
+pretrain: true
