@@ -30,34 +30,6 @@ class RenderMAEDecoder(nn.Module):
         
         self.rec_head = build_shared_mlp([embed_dim, 256, 128, out_dim], conv_dim=1)
 
-    # def forward(self, vis_token, vis_pts, reflected_pts):        
-    #     """
-    #     Args:
-    #         vis_token: (B, N_visible, D) - encoded visible tokens
-    #         vis_pts: (B, N_visible, 3) - input visible points (for position encoding)
-    #         reflected_pts: (B, N_mask, 3) - reflected visible points (for mask position encoding)
-    #     Returns:
-    #         pred_pts: (B, N_mask, 3) - reconstructed masked points
-    #     """
-    #     B, N_mask, _ = reflected_pts.shape
-    #     D = vis_token.shape[-1]
-
-    #     vis_pos = self.pos_embed(vis_pts)             # (B, N_visible, D)
-    #     mask_pos = self.pos_embed(reflected_pts)      # (B, N_mask, D)        
-    #     mask_token = self.mask_token.expand(B, N_mask, D)  # (B, N_mask, D)
-        
-    #     x_full = torch.cat([vis_token, mask_token], dim=1)   # (B, N_all, D)
-    #     pos_full = torch.cat([vis_pos, mask_pos], dim=1)     # (B, N_all, D)
-
-    #     x = self.blocks(x_full, pos_full)                    # (B, N_all, D)
-    #     x = self.norm(x)
-
-    #     pred_mask = x[:, -N_mask:, :]                        # (B, N_mask, D)
-    #     pred_mask = pred_mask.transpose(1, 2)                # (B, D, N_mask)
-    #     pred_pts = self.rec_head(pred_mask).transpose(1, 2)  # (B, N_mask, 3)
-
-    #     return pred_pts
-        
     def forward(self, vis_token, vis_centers, mask_pts):
         B, G, D = vis_token.shape
 
