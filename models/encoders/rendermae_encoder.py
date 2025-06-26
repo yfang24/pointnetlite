@@ -33,7 +33,7 @@ class RenderMAEEncoder(nn.Module):
         self.blocks = TransformerEncoder(
             embed_dim=embed_dim,
             depth=depth,
-            drop_path_rate=dpr,
+            drop_path=dpr,
             num_heads=num_heads,
         )
         self.norm = nn.LayerNorm(embed_dim)
