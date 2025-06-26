@@ -8,13 +8,13 @@ from models.modules.builders import build_shared_mlp
 class PointEncoderMLP(nn.Module):
     def __init__(self, in_dim=3, embed_dim=384):
         super().__init__()
-        self.mlp = build_shared_mlp([in_dim, 128, 256, embed_dim], conv_dim=1)
-
-    def forward(self, x):
-        # x: (B, N, 3)
-        x = x.transpose(1, 2)        # (B, 3, N)
-        x = self.mlp(x)              # (B, D, N)
-        return x.transpose(1, 2)     # (B, N, D)
+        self.mlp = build_shared_mlp([in_dim] + [64, 128] + [embed_dim], conv_dim=2, act=nn.ReLU(inplace=True), final_act=False)
+        
+    def forward(self, x):  # (B, G, N, 3)
+        x = x.permute(0, 3, 2, 1)  # (B, C_in, k, G)
+        x = self.mlp(x).max(dim=2)[0]  # (B, C_out, k, G), max over neighborhood k -> (B, C_out, G) 
+        x = x.permute(0, 2, 1)  # (B, G, C_out)
+        return x
 
 
 class RenderMAEEncoder(nn.Module):
@@ -22,7 +22,9 @@ class RenderMAEEncoder(nn.Module):
                  group_size=32, num_group=64, noaug=False):  # noaug: whether do masking--False for pretrain, True for finetune
         super().__init__()
         self.noaug = noaug
-
+        self.group_size = group_size
+        self.num_group = num_group
+                     
         self.point_encoder = PointEncoderMLP(in_dim=3, embed_dim=embed_dim)
 
         self.pos_embed = nn.Sequential(
@@ -52,9 +54,9 @@ class RenderMAEEncoder(nn.Module):
         """
         # vis_embed = self.point_encoder(vis_pts)        # (B, N, D)
 
-        centers = fps(vis_pts, M)  # (B, M, 3)
-        grouped_pts = group_points(vis_pts, centers, K=32)  # (B, M, K, 3)
-        vis_embed = self.point_encoder(grouped_pts)  # (B, M, D)
+        centers = fps(vis_pts, self.num_group)  # (B, G, 3)
+        grouped_pts = group_points(point_cloud, idx=knn_group(point_cloud, center, self.group_size))  - center.unsqueeze(2) # (B, G, S, 3)
+        vis_embed = self.point_encoder(grouped_pts)  # (B, G, D)
 
         #------------------
         vis_pos = self.pos_embed(vis_pts)             # (B, N, D)
