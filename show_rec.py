@@ -15,7 +15,7 @@ from utils.train_utils import evaluate, pretrain_evaluate
 from utils.checkpoint_utils import load_checkpoint
 from utils.pcd_utils import init_pcd, viz_pcd
 
-def main(exp_name):    
+def main():    
     parser = argparse.ArgumentParser()
     parser.add_argument("-exp", "--exp_name", type=str, required=True,
                     help="Experiment folder name (e.g., pointnet_test_20250612_103045)")
