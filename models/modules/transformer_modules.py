@@ -2,8 +2,6 @@ import torch
 import torch.nn as nn
 from timm.layers import DropPath
 
-from models.modules.builders import build_fc_layers
-
 # feed forward layer in transformer block
 class Mlp(nn.Module):
     def __init__(self, in_dim, hidden_dim=None, out_dim=None, drop=0.):
