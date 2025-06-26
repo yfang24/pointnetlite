@@ -54,7 +54,8 @@ class RenderMAEEncoder(nn.Module):
         centers = fps(vis_pts, M)  # (B, M, 3)
         grouped_pts = group_points(vis_pts, centers, K=32)  # (B, M, K, 3)
         vis_embed = self.point_encoder(grouped_pts)  # (B, M, D)
-        
+
+        #------------------
         vis_pos = self.pos_embed(vis_pts)             # (B, N, D)
 
         vis_token = self.blocks(vis_embed, vis_pos)          # (B, N, D)
