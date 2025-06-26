@@ -5,8 +5,6 @@ from utils.pcd_utils import fps, knn_group, group_points
 from models.modules.transformer_modules import TransformerEncoder
 from models.modules.builders import build_shared_mlp
 
-from models.modules.builders import build_shared_mlp
-
 class PointGroupEncoder(nn.Module):
     def __init__(self, in_dim=3, embed_dim=1024):
         super().__init__()
@@ -14,7 +12,7 @@ class PointGroupEncoder(nn.Module):
         
     def forward(self, x):  # (B, G, N, 3)
         x = x.permute(0, 3, 2, 1)  # (B, C_in, k, G)
-        x = mlp(x).max(dim=2)[0]  # (B, C_out, k, G), max over neighborhood k -> (B, C_out, G) 
+        x = self.mlp(x).max(dim=2)[0]  # (B, C_out, k, G), max over neighborhood k -> (B, C_out, G) 
         x = x.permute(0, 2, 1)  # (B, G, C_out)
         return x
 
