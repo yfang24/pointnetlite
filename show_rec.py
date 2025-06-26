@@ -47,7 +47,7 @@ def main(exp_name):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     # Load dataset
-    if args.viz_dataset == "train"
+    if args.viz_dataset == "train":
         dataset = get_dataset(config, "train_dataset")
     else:
         dataset, _, _ = get_dataset(config, "test_dataset")
