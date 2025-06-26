@@ -303,7 +303,7 @@ def run_training(rank, world_size, local_rank, config, config_path, device, use_
             num_points = getattr(train_set, "num_points", train_set[0][0].shape[0])
             dummy_input = torch.rand(1, num_points, 3).float().to(device)
         flops, params = get_model_profile(model, dummy_input)    
-        logger.info(f"Model Params: {params:,} | FLOPs: {flops / 1e6:.2f} MFLOPs")      
+        logger.info(f"Model Params: {params / 1e6:.2f} M | FLOPs: {flops / 1e6:.2f} M")      
 
     # Loss
     loss_fn = get_loss(config)
@@ -520,7 +520,7 @@ def run_pretraining(rank, world_size, local_rank, config, config_path, device, u
             num_points = getattr(train_set, "num_points", train_set[0][0].shape[0])
             dummy_input = torch.rand(1, num_points, 3).float().to(device)
         flops, params = get_model_profile(model, dummy_input)
-        logger.info(f"Model Params: {params:,} | FLOPs: {flops / 1e6:.2f} MFLOPs")
+        logger.info(f"Model Params: {params / 1e6:.2f} M | FLOPs: {flops / 1e6:.2f} M")
 
     # Loss
     loss_fn = get_loss(config)
