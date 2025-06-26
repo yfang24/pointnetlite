@@ -4,7 +4,10 @@ import torch.nn as nn
 from models.modules.builders import build_fc_layers
 
 class PointNetClsHead(nn.Module):
-    def __init__(self, embed_dim=1024, hidden_dims=[512, 256], out_dim=40, dropout=0.4):
+    def __init__(self, embed_dim=1024, hidden_dims=[512, 256], out_dim=40, dropout=[0, 0.4]):
+        """
+        dropout: [0, 0.4] for pointnet, 0.4 for pointnet++
+        """
         super().__init__()
         self.fc = build_fc_layers([embed_dim] + hidden_dims + [out_dim], linear_bias=True, act=nn.ReLU(inplace=True), dropout=dropout)
 
