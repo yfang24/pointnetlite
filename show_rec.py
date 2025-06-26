@@ -14,6 +14,7 @@ from models.losses.get_loss import get_loss
 from utils.train_utils import evaluate, pretrain_evaluate
 from utils.checkpoint_utils import load_checkpoint
 from utils.pcd_utils import init_pcd, viz_pcd
+from utils.pcd_utils import fps
 
 def main():    
     parser = argparse.ArgumentParser()
