@@ -1,4 +1,5 @@
 import torch
+import torch.nn
 from thop import profile
 
 def get_model_profile(model, input_tensor):
