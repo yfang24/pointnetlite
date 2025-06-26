@@ -274,8 +274,13 @@ def run_training(rank, world_size, local_rank, config, config_path, device, use_
         
     # Model Profile
     if rank == 0:
-        num_points = getattr(train_set, "num_points", train_set[0][0].shape[0])
-        dummy_input = torch.rand(1, num_points, 3).float().to(device)
+        if isinstance(train_set[0][0], tuple): # for modelnet_mae_render
+            num_points = getattr(train_set, "num_points", train_set[0][0][0].shape[0])
+            dummy_input = torch.rand(1, num_points, 3).float().to(device)
+            dummy_input = tuple(dummy_input.clone() for _ in train_set[0][0])
+        else:
+            num_points = getattr(train_set, "num_points", train_set[0][0].shape[0])
+            dummy_input = torch.rand(1, num_points, 3).float().to(device)
         flops, params = get_model_profile(model, dummy_input)    
         logger.info(f"Model Params: {params:,} | FLOPs: {flops / 1e6:.2f} MFLOPs")      
 
@@ -484,8 +489,13 @@ def run_pretraining(rank, world_size, local_rank, config, config_path, device, u
 
     # Model Profile
     if rank == 0:
-        num_points = getattr(train_set, "num_points", train_set[0][0].shape[0])
-        dummy_input = torch.rand(1, num_points, 3).float().to(device)
+        if isinstance(train_set[0][0], tuple): # for modelnet_mae_render
+            num_points = getattr(train_set, "num_points", train_set[0][0][0].shape[0])
+            dummy_input = torch.rand(1, num_points, 3).float().to(device)
+            dummy_input = tuple(dummy_input.clone() for _ in train_set[0][0])
+        else:
+            num_points = getattr(train_set, "num_points", train_set[0][0].shape[0])
+            dummy_input = torch.rand(1, num_points, 3).float().to(device)
         flops, params = get_model_profile(model, dummy_input)
         logger.info(f"Model Params: {params:,} | FLOPs: {flops / 1e6:.2f} MFLOPs")
 
@@ -601,8 +611,13 @@ def run_finetuning(rank, world_size, local_rank, config, config_path, device, us
         
     # Model Profile
     if rank == 0:
-        num_points = getattr(train_set, "num_points", train_set[0][0].shape[0])
-        dummy_input = torch.rand(1, num_points, 3).float().to(device)
+        if isinstance(train_set[0][0], tuple): # for modelnet_mae_render
+            num_points = getattr(train_set, "num_points", train_set[0][0][0].shape[0])
+            dummy_input = torch.rand(1, num_points, 3).float().to(device)
+            dummy_input = tuple(dummy_input.clone() for _ in train_set[0][0])
+        else:
+            num_points = getattr(train_set, "num_points", train_set[0][0].shape[0])
+            dummy_input = torch.rand(1, num_points, 3).float().to(device)
         flops, params = get_model_profile(model, dummy_input)    
         logger.info(f"Model Params: {params:,} | FLOPs: {flops / 1e6:.2f} MFLOPs")      
 
