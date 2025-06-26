@@ -2,7 +2,6 @@ import torch
 import torch.nn as nn
 
 from models.modules.transformer_modules import TransformerEncoder
-from utils.pcd_utils import fps, knn_group, group_points
 
 class PointMAEDecoder(nn.Module):
     def __init__(self, embed_dim=384, group_size=32, drop_path=0.1, depth=4, num_heads=6):
