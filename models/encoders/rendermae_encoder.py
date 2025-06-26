@@ -17,8 +17,9 @@ class PointEncoderMLP(nn.Module):
 
 
 class RenderMAEEncoder(nn.Module):
-    def __init__(self, embed_dim=384, depth=12, drop_path=0.1, num_heads=6):
+    def __init__(self, embed_dim=384, depth=12, drop_path=0.1, num_heads=6, noaug=False):  # noaug: whether do masking--False for pretrain, True for finetune
         super().__init__()
+        self.noaug = noaug
 
         self.point_encoder = PointEncoderMLP(in_dim=3, embed_dim=embed_dim)
 
@@ -38,7 +39,7 @@ class RenderMAEEncoder(nn.Module):
         self.norm = nn.LayerNorm(embed_dim)
 
     # def forward(self, vis_pts):
-    def forward(self, vis_pts, mask_pts, reflected_pts, noaug=False):
+    def forward(self, vis_pts, mask_pts, reflected_pts):
         """
         Args:
             vis_pts: (B, N, 3)
@@ -51,6 +52,6 @@ class RenderMAEEncoder(nn.Module):
         vis_token = self.blocks(vis_embed, vis_pos)          # (B, N, D)
         vis_token = self.norm(vis_token)
 
-        if noaug:
+        if self.noaug:
             return vis_token
         return vis_token, vis_pts, mask_pts, reflected_pts
