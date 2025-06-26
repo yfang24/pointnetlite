@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from thop import profile
+from fvcore.nn import FlopCountAnalysis, parameter_count
 
 def get_model_profile(model, input_tensor):
     model.eval()
@@ -10,28 +10,10 @@ def get_model_profile(model, input_tensor):
     else:
         model.to(input_tensor.device)
 
-    # ---- Patch inplace=True ReLU to inplace=False ----
-    relu_inplace_flags = []
-    for module in model.modules():
-        if isinstance(module, nn.ReLU):
-            relu_inplace_flags.append((module, module.inplace))
-            module.inplace = False  # patch for THOP compatibility
-
-    # ---- Profile ----
     with torch.no_grad():
-        macs, params = profile(model, inputs=(input_tensor,), verbose=False)
-        flops = macs * 2
+        flops = FlopCountAnalysis(model, (input_tensor,)).total()
+        params = sum(p.numel() for p in model.parameters())
 
-    # ---- Revert ReLU to original inplace setting ----
-    for module, was_inplace in relu_inplace_flags:
-        module.inplace = was_inplace
-        
-    # ---- Clean up THOP buffers ----
-    for module in model.modules():
-        for key in list(module._buffers.keys()):
-            if "total_ops" in key or "total_params" in key:
-                del module._buffers[key]
-            
     return flops, params
 
 def freeze_model(model):
