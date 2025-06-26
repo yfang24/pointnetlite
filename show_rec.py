@@ -84,12 +84,13 @@ def main():
 
                 vis_token, vis_centers = encoder(vis_pts)
                 rec_group, mask_group = head(vis_token, vis_centers, mask_pts)  # (G, S, 3)
-
-                vis_centers = fps(vis_pts, rec_group.size(1)) 
+                G, S, _ = rec_group.shape
+                
+                vis_centers = fps(vis_pts, G) 
                 vis_pts = group_points(vis_pts.clone(), idx=knn_group(vis_pts.clone(), vis_centers, S))
                 vis_pts = vis_pts.reshape(-1, 3).cpu().numpy() # (G * S, 3)
                 
-                mask_centers = fps(mask_pts, rec_group.size(1))  # (1, G, 3)
+                mask_centers = fps(mask_pts, G)  # (1, G, 3)
                 rec_pts = rec_group.unsqueeze(0) + mask_centers.unsqueeze(2) # (1, G, S, 3)
                 rec_pts = rec_pts.reshape(-1, 3).cpu().numpy() # (G * S, 3)   
 
