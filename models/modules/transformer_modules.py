@@ -10,7 +10,6 @@ class Mlp(nn.Module):
         super().__init__()
         hidden_dim = hidden_dim or in_dim
         out_dim = out_dim or in_dim
-
         
         self.fc1 = nn.Linear(in_dim, hidden_dim)
         self.act = nn.GELU()
@@ -30,6 +29,7 @@ class MultiHeadAttention(nn.Module):
         self.num_heads = num_heads
         head_dim = embed_dim // num_heads
         self.scale = qk_scale or head_dim ** -0.5
+        
         self.qkv = nn.Linear(embed_dim, embed_dim * 3, bias=qkv_bias)
         self.attn_drop = nn.Dropout(attn_drop)
         self.proj = nn.Linear(embed_dim, embed_dim)
@@ -39,8 +39,10 @@ class MultiHeadAttention(nn.Module):
         B, N, D = x.shape
         qkv = self.qkv(x).reshape(B, N, 3, self.num_heads, D // self.num_heads).permute(2, 0, 3, 1, 4)
         q, k, v = qkv[0], qkv[1], qkv[2]                          # (B, H, N, D_head=D//H)
+        
         attn = (q @ k.transpose(-2, -1)) * self.scale             # (B, H, N, N)
         attn = self.attn_drop(attn.softmax(dim=-1))
+        
         x = (attn @ v).transpose(1, 2).reshape(B, N, D)           # (B, H, N, D_head) -> (B, N, D)
         return self.proj_drop(self.proj(x))                       # (B, N, D)
 
@@ -62,7 +64,7 @@ class TransformerBlock(nn.Module):
         x = x + self.drop_path(self.mlp(self.norm2(x)))                          # (B, N, D)
         return x
 
-
+# Transformer encoder: a stack of Transformer blocks
 class TransformerEncoder(nn.Module):
     def __init__(self, embed_dim=768, depth=4, num_heads=12, mlp_ratio=4., 
                  qkv_bias=False, qk_scale=None, drop=0., attn_drop=0., drop_path=0.):
