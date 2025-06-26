@@ -3,27 +3,18 @@ import torch.nn as nn
 
 from utils.pcd_utils import fps, knn_group, group_points
 from models.modules.transformer_modules import TransformerEncoder
+from models.modules.builders import build_shared_mlp
 
-# encode grouped point cloud using pointnet-like encoder
+from models.modules.builders import build_shared_mlp
+
 class PointGroupEncoder(nn.Module):
     def __init__(self, in_dim=3, embed_dim=1024):
         super().__init__()
-        self.embed_dim = embed_dim
-        self.first_conv = nn.Sequential(
-            nn.Conv1d(in_dim, 128, 1),
-            nn.BatchNorm1d(128),
-            nn.ReLU(inplace=True),
-            nn.Conv1d(128, 256, 1)
-        )
-        self.second_conv = nn.Sequential(
-            nn.Conv1d(512, 512, 1),
-            nn.BatchNorm1d(512),
-            nn.ReLU(inplace=True),
-            nn.Conv1d(512, embed_dim, 1)
-        )
-
+        self.mlp = build_shared_mlp([in_dim] + [64, 128] + [embed_dim], conv_dim=2, act=nn.ReLU(inplace=True), final_act=False)
+        
     def forward(self, x):
         B, G, N, _ = x.shape                                       # (B, G, N, 3)
+        x.permute(0, 
         x = x.view(B * G, N, 3).transpose(2, 1)                    # (BG, 3, N)
         x = self.first_conv(x)                                     # (BG, 256, N)
         x_global = torch.max(x, dim=2, keepdim=True)[0]            # (BG, 256, 1)
@@ -31,6 +22,34 @@ class PointGroupEncoder(nn.Module):
         x = self.second_conv(x)                                    # (BG, D, N)
         x = torch.max(x, dim=2)[0]                                 # (BG, D)
         return x.view(B, G, self.embed_dim)                  # (B, G, D)
+
+
+# class PointGroupEncoder(nn.Module):
+#     def __init__(self, in_dim=3, embed_dim=1024):
+#         super().__init__()
+#         self.embed_dim = embed_dim
+#         self.first_conv = nn.Sequential(
+#             nn.Conv1d(in_dim, 128, 1),
+#             nn.BatchNorm1d(128),
+#             nn.ReLU(inplace=True),
+#             nn.Conv1d(128, 256, 1)
+#         )
+#         self.second_conv = nn.Sequential(
+#             nn.Conv1d(512, 512, 1),
+#             nn.BatchNorm1d(512),
+#             nn.ReLU(inplace=True),
+#             nn.Conv1d(512, embed_dim, 1)
+#         )
+
+#     def forward(self, x):
+#         B, G, N, _ = x.shape                                       # (B, G, N, 3)
+#         x = x.view(B * G, N, 3).transpose(2, 1)                    # (BG, 3, N)
+#         x = self.first_conv(x)                                     # (BG, 256, N)
+#         x_global = torch.max(x, dim=2, keepdim=True)[0]            # (BG, 256, 1)
+#         x = torch.cat([x_global.expand(-1, -1, N), x], dim=1)      # (BG, 512, N)
+#         x = self.second_conv(x)                                    # (BG, D, N)
+#         x = torch.max(x, dim=2)[0]                                 # (BG, D)
+#         return x.view(B, G, self.embed_dim)                  # (B, G, D)
         
         
 class PointMAEEncoder(nn.Module):
