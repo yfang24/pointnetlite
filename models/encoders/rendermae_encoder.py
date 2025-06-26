@@ -19,10 +19,11 @@ class PointEncoderMLP(nn.Module):
 
 class RenderMAEEncoder(nn.Module):
     def __init__(self, embed_dim=384, depth=12, drop_path=0.1, num_heads=6, 
-                 group_size=32, num_group=64):
+                 group_size=32, num_group=64, noaug=False):
         super().__init__()
         self.group_size = group_size
         self.num_group = num_group
+        self.noaug = noaug
                      
         self.point_encoder = PointEncoderMLP(in_dim=3, embed_dim=embed_dim)
 
@@ -57,5 +58,7 @@ class RenderMAEEncoder(nn.Module):
         vis_token = self.blocks(vis_embed, vis_pos)          # (B, G, D)
         vis_token = self.norm(vis_token)
 
+        if self.noaug:
+            return vis_token
         return vis_token, vis_centers
         
