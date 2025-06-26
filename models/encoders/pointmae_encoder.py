@@ -12,17 +12,11 @@ class PointGroupEncoder(nn.Module):
         super().__init__()
         self.mlp = build_shared_mlp([in_dim] + [64, 128] + [embed_dim], conv_dim=2, act=nn.ReLU(inplace=True), final_act=False)
         
-    def forward(self, x):
-        B, G, N, _ = x.shape                                       # (B, G, N, 3)
-        x.permute(0, 
-        x = x.view(B * G, N, 3).transpose(2, 1)                    # (BG, 3, N)
-        x = self.first_conv(x)                                     # (BG, 256, N)
-        x_global = torch.max(x, dim=2, keepdim=True)[0]            # (BG, 256, 1)
-        x = torch.cat([x_global.expand(-1, -1, N), x], dim=1)      # (BG, 512, N)
-        x = self.second_conv(x)                                    # (BG, D, N)
-        x = torch.max(x, dim=2)[0]                                 # (BG, D)
-        return x.view(B, G, self.embed_dim)                  # (B, G, D)
-
+    def forward(self, x):  # (B, G, N, 3)
+        x = x.permute(0, 3, 2, 1)  # (B, C_in, k, G)
+        x = mlp(x).max(dim=2)[0]  # (B, C_out, k, G), max over neighborhood k -> (B, C_out, G) 
+        x = x.permute(0, 2, 1)  # (B, G, C_out)
+        return x
 
 # class PointGroupEncoder(nn.Module):
 #     def __init__(self, in_dim=3, embed_dim=1024):
