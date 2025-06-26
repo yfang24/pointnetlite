@@ -1,6 +1,5 @@
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
 from utils.pcd_utils import fps, ball_group, group_points
 from models.modules.builders import build_shared_mlp
