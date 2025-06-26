@@ -75,6 +75,8 @@ def main():
             for pc, label in dataset:
                 if isinstance(pc, tuple):                    
                     vis_pts, mask_pts, _ = tuple(t.unsqueeze(0).float().to(device) for t in pc)  # (1, N, 3)
+                    vis = vis_pts.squeeze(0).cpu().numpy()
+                    mask = mask_pts.squeeze(0).cpu().numpy()
                 else:
                     pc = pc.unsqueeze(0).float().to(device)  # (1, N, 3) 
                     
@@ -97,7 +99,7 @@ def main():
                 gt_pts = mask_group.unsqueeze(0) + mask_centers.unsqueeze(2)
                 gt_pts = gt_pts.reshape(-1, 3).cpu().numpy()
 
-                viz_pcds.append([vis_pts, rec_pts, gt_pts])
+                viz_pcds.append([vis, mask, vis_pts, rec_pts, gt_pts])
                 
                 class_name = inv_class_map[label]
                 viz_class_names.append(class_name)
@@ -114,7 +116,7 @@ def main():
         print(f"- Row 1: Visible")
         print(f"- Row 2: Reconstructed")
         print(f"- Row 3: Ground Truth")
-        viz_pcd(viz_pcds, spacing=2, rows=3)
+        viz_pcd(viz_pcds, spacing=2, rows=5)
         
 if __name__ == "__main__":
     main()
