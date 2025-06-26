@@ -3,7 +3,7 @@ import torch.nn as nn
 
 from models.modules.transformer_modules import TransformerEncoder
 from models.modules.builders import build_shared_mlp
-from utils.pcd_utils import fps, knn_group, group_points
+from utils.pcd_utils import fps
 
 class RenderMAEDecoder(nn.Module):
     def __init__(self, embed_dim=384, depth=4, drop_path=0.1, num_heads=6, out_dim=3):
