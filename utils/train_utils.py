@@ -108,7 +108,11 @@ def train_one_epoch(epoch, encoder, head, dataloader, loss_fn, optimizer, schedu
     total = 0
 
     for batch in tqdm(dataloader, desc="Train", leave=False):
-        inputs, targets = batch[0].float().to(device), batch[1].long().to(device)
+        if isinstance(batch[0], tuple): # for modelnet_mae_render
+            inputs = tuple(t.float().to(device) for t in batch[0])
+        else:
+            inputs = batch[0].float().to(device)  # (B, N, 3)
+        targets = batch[1].long().to(device)
 
         optimizer.zero_grad()
         outputs = head(encoder(inputs))
@@ -151,8 +155,12 @@ def evaluate(encoder, head, dataloader, loss_fn, device, logger=None, rotation_v
     all_targets = []
     
     with torch.no_grad():
-        for batch in tqdm(dataloader, desc="Eval", leave=False):
-            inputs, targets = batch[0].float().to(device), batch[1].long().to(device)
+        for batch in tqdm(dataloader, desc="Eval", leave=False):          
+            if isinstance(batch[0], tuple): # for modelnet_mae_render
+                inputs = tuple(t.float().to(device) for t in batch[0])
+            else:
+                inputs = batch[0].float().to(device)  # (B, N, 3)
+            targets = batch[1].long().to(device)
 
             outputs = head(encoder(inputs))
             loss = loss_fn(outputs, targets)
@@ -360,7 +368,10 @@ def pretrain_one_epoch(epoch, encoder, head, dataloader, loss_fn, optimizer, sch
     total = 0
 
     for batch in tqdm(dataloader, desc="Pretrain", leave=False):
-        inputs = batch[0].float().to(device)  # (B, N, 3)
+        if isinstance(batch[0], tuple): # for modelnet_mae_render
+            inputs = tuple(t.float().to(device) for t in batch[0])
+        else:
+            inputs = batch[0].float().to(device)  # (B, N, 3)        
 
         optimizer.zero_grad()
         pred, target = head(encoder(inputs))
@@ -399,7 +410,10 @@ def pretrain_evaluate(encoder, head, dataloader, loss_fn, device, logger=None):
 
     with torch.no_grad():
         for batch in tqdm(dataloader, desc="Val", leave=False):
-            inputs = batch[0].float().to(device)  # (B, N, 3)
+            if isinstance(batch[0], tuple): # for modelnet_mae_render
+                inputs = tuple(t.float().to(device) for t in batch[0])
+            else:
+                inputs = batch[0].float().to(device)  # (B, N, 3)
 
             pred, target = head(encoder(inputs))
 
