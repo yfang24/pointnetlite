@@ -219,7 +219,7 @@ def init_pcd(points, **kwargs):
     kwargs: normals=(num_points, 3), colors(in rgb)=(3, ) or (num_points, 3).
     '''
     pcd = o3d.geometry.PointCloud()
-    pcd.points = o3d.utility.Vector3dVector(points)
+    pcd.points = o3d.utility.Vector3dVector(points.astype(np.float64))
     if 'normals' in kwargs:
         normals = np.array(kwargs['normals'])
         pcd.normals = o3d.utility.Vector3dVector(normals)
