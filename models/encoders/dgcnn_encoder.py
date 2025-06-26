@@ -3,38 +3,20 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from utils.pcd_utils import knn_group, group_points
+from models.modules.builders import build_shared_mlp
 
 class DGCNNEncoder(nn.Module):
-    def __init__(self, k=20, in_dim=3, embed_dim=1024):
+    def __init__(self, k=20, in_dim=3, embed_dim=1024, hidden_dims=[64, 64, 128, 256, 512]):
         super().__init__()
         self.k = k
         self.embed_dim = embed_dim
 
-        self.conv1 = nn.Sequential(
-            nn.Conv2d(6, 64, kernel_size=1, bias=False),
-            nn.BatchNorm2d(64),
-            nn.LeakyReLU(0.2)
-        )
-        self.conv2 = nn.Sequential(
-            nn.Conv2d(64 * 2, 64, kernel_size=1, bias=False),
-            nn.BatchNorm2d(64),
-            nn.LeakyReLU(0.2)
-        )
-        self.conv3 = nn.Sequential(
-            nn.Conv2d(64 * 2, 128, kernel_size=1, bias=False),
-            nn.BatchNorm2d(128),
-            nn.LeakyReLU(0.2)
-        )
-        self.conv4 = nn.Sequential(
-            nn.Conv2d(128 * 2, 256, kernel_size=1, bias=False),
-            nn.BatchNorm2d(256),
-            nn.LeakyReLU(0.2)
-        )
-        self.conv5 = nn.Sequential(
-            nn.Conv1d(512, embed_dim, kernel_size=1, bias=False),
-            nn.BatchNorm1d(embed_dim),
-            nn.LeakyReLU(0.2)
-        )
+        act = nn.LeakyReLU(negative_slope=0.2, inplace=True)
+        self.conv1 = build_shared_mlp([in_dim * 2, hidden_dims[0]], conv_dim=2, conv_bias=False, act=act, final_act=True)
+        self.conv2 = build_shared_mlp([hidden_dims[0] * 2, hidden_dims[1]], conv_dim=2, conv_bias=False, act=act, final_act=True)
+        self.conv3 = build_shared_mlp([hidden_dims[1] * 2, hidden_dims[2]], conv_dim=2, conv_bias=False, act=act, final_act=True)
+        self.conv4 = build_shared_mlp([hidden_dims[2] * 2, hidden_dims[3]], conv_dim=2, conv_bias=False, act=act, final_act=True)
+        self.conv5 = build_shared_mlp([hidden_dims[3] * 2, hidden_dims[4]], conv_dim=1, conv_bias=False, act=act, final_act=True)
 
     def _get_graph_feature(self, x, k):
         """
