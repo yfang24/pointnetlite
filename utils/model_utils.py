@@ -8,12 +8,24 @@ def get_model_profile(model, input_tensor):
         model.to(input_tensor[0].device)
     else:
         model.to(input_tensor.device)
-    
+
+    # ---- Patch inplace=True ReLU to inplace=False ----
+    relu_inplace_flags = []
+    for module in model.modules():
+        if isinstance(module, nn.ReLU):
+            relu_inplace_flags.append((module, module.inplace))
+            module.inplace = False  # patch for THOP compatibility
+
+    # ---- Profile ----
     with torch.no_grad():
         macs, params = profile(model, inputs=(input_tensor,), verbose=False)
         flops = macs * 2
-    
-    # Safely remove THOP-injected buffers from all submodules
+
+    # ---- Revert ReLU to original inplace setting ----
+    for module, was_inplace in relu_inplace_flags:
+        module.inplace = was_inplace
+        
+    # ---- Clean up THOP buffers ----
     for module in model.modules():
         for key in list(module._buffers.keys()):
             if "total_ops" in key or "total_params" in key:
