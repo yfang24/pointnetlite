@@ -18,7 +18,7 @@ def build_shared_mlp(dims, conv_dim=1, act=nn.ReLU(inplace=True), final_act=Fals
         in_dim, out_dim = dims[i], dims[i + 1]
         is_last = i == n_layers - 1
 
-        layers.append(conv(in_dim, out_dim, 1))
+        layers.append(conv(in_dim, out_dim, kernel_size=1))
         layers.append(bn(out_dim))
         if not is_last or final_act:
             layers.append(act)
