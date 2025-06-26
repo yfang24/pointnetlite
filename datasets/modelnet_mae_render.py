@@ -79,7 +79,7 @@ class ModelNetMAERender(Dataset):
         vis_pts, mask_pts, reflected_pts = self.data[idx]
         label = self.labels[idx]
 
-        return vis_pts, mask_pts, reflected_pts, label
+        return (vis_pts, mask_pts, reflected_pts), label
 
     def _process_and_render(self):
         data, labels = []
