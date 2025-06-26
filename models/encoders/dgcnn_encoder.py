@@ -6,7 +6,7 @@ from utils.pcd_utils import knn_group, group_points
 from models.modules.builders import build_shared_mlp
 
 class DGCNNEncoder(nn.Module):
-    def __init__(self, k=20, in_dim=3, embed_dim=1024, hidden_dims=[64, 64, 128, 256, 512]):
+    def __init__(self, k=20, in_dim=3, embed_dim=1024, hidden_dims=[64, 64, 128, 256]):
         super().__init__()
         self.k = k
         self.embed_dim = embed_dim
@@ -16,7 +16,7 @@ class DGCNNEncoder(nn.Module):
         self.conv2 = build_shared_mlp([hidden_dims[0] * 2, hidden_dims[1]], conv_dim=2, conv_bias=False, act=act, final_act=True)
         self.conv3 = build_shared_mlp([hidden_dims[1] * 2, hidden_dims[2]], conv_dim=2, conv_bias=False, act=act, final_act=True)
         self.conv4 = build_shared_mlp([hidden_dims[2] * 2, hidden_dims[3]], conv_dim=2, conv_bias=False, act=act, final_act=True)
-        self.conv5 = build_shared_mlp([hidden_dims[3] * 2, hidden_dims[4]], conv_dim=1, conv_bias=False, act=act, final_act=True)
+        self.conv5 = build_shared_mlp([hidden_dims[3] * 2, embed_dim], conv_dim=1, conv_bias=False, act=act, final_act=True)
 
     def _get_graph_feature(self, x, k):
         """
