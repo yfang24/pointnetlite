@@ -115,6 +115,14 @@ def smart_collate_fn(batch):  # for modelnet_mae_render
     labels = default_collate(labels)
     return data, labels
 
+class RenderMAE(torch.nn.Module):
+    def __init__(encoder, decoder):
+        super().__init__()
+    def forward(self, x):
+        vis_pts, mask_pts = x, x
+        vis_token, vis_centers = encoder(vis_pts)
+        return head(vis_token, vis_centers, mask_pts)
+            
 #=====================
 # train
 #=====================
@@ -130,11 +138,11 @@ def train_one_epoch(epoch, encoder, head, dataloader, loss_fn, optimizer, schedu
 
     for batch in tqdm(dataloader, desc="Train", leave=False):
         if isinstance(batch[0], tuple):
-            inputs = tuple(t.float().to(device) for t in batch[0])
+            inputs = tuple(t.float().to(device) for t in batch[0])[0]
         else:
-            inputs = batch[0].float().to(device)  # (B, N, 3)        
+            inputs = batch[0].float().to(device)  # (B, N, 3)      
+            
         targets = batch[1].long().to(device)
-
         optimizer.zero_grad()
         outputs = head(encoder(inputs))
         loss = loss_fn(outputs, targets)
@@ -178,7 +186,7 @@ def evaluate(encoder, head, dataloader, loss_fn, device, logger=None, rotation_v
     with torch.no_grad():
         for batch in tqdm(dataloader, desc="Eval", leave=False):          
             if isinstance(batch[0], tuple):
-                inputs = tuple(t.float().to(device) for t in batch[0])
+                inputs = tuple(t.float().to(device) for t in batch[0])[0]
             else:
                 inputs = batch[0].float().to(device)  # (B, N, 3)
             targets = batch[1].long().to(device)
@@ -395,13 +403,18 @@ def pretrain_one_epoch(epoch, encoder, head, dataloader, loss_fn, optimizer, sch
 
     for batch in tqdm(dataloader, desc="Pretrain", leave=False):
         if isinstance(batch[0], tuple):
-            inputs = tuple(t.float().to(device) for t in batch[0])
+            vis_pts, mask_pts, _ = tuple(t.float().to(device) for t in batch[0])
+            targets = batch[1].long().to(device) 
+    
+            optimizer.zero_grad()
+            vis_token, vis_centers = encoder(vis_pts)
+            pred, target = head(vis_token, vis_centers, mask_pts)
         else:
             inputs = batch[0].float().to(device)  # (B, N, 3)
-        targets = batch[1].long().to(device)       
-
-        optimizer.zero_grad()
-        pred, target = head(encoder(inputs))
+            targets = batch[1].long().to(device)       
+    
+            optimizer.zero_grad()
+            pred, target = head(encoder(inputs))
 
         loss = loss_fn(pred, target)
         loss.backward()
@@ -436,14 +449,18 @@ def pretrain_evaluate(encoder, head, dataloader, loss_fn, device, logger=None):
     total = 0
 
     with torch.no_grad():
-        for batch in tqdm(dataloader, desc="Val", leave=False):            
+        for batch in tqdm(dataloader, desc="Val", leave=False):           
             if isinstance(batch[0], tuple):
-                inputs = tuple(t.float().to(device) for t in batch[0])
+                vis_pts, mask_pts, _ = tuple(t.float().to(device) for t in batch[0])
+                targets = batch[1].long().to(device) 
+        
+                vis_token, vis_centers = encoder(vis_pts)
+                pred, target = head(vis_token, vis_centers, mask_pts)
             else:
                 inputs = batch[0].float().to(device)  # (B, N, 3)
-            targets = batch[1].long().to(device)
-
-            pred, target = head(encoder(inputs))
+                targets = batch[1].long().to(device)       
+        
+                pred, target = head(encoder(inputs))
 
             loss = loss_fn(pred, target)
             total_loss += loss.item() * targets.size(0)
@@ -513,9 +530,9 @@ def run_pretraining(rank, world_size, local_rank, config, config_path, device, u
     # Model Profile
     if rank == 0:
         if isinstance(train_set[0][0], tuple): # for modelnet_mae_render
+            model = RenderMAE(encoder, head)
             num_points = getattr(train_set, "num_points", train_set[0][0][0].shape[0])
             dummy_input = torch.rand(1, num_points, 3).float().to(device)
-            dummy_input = tuple(dummy_input.clone() for _ in train_set[0][0])
         else:
             num_points = getattr(train_set, "num_points", train_set[0][0].shape[0])
             dummy_input = torch.rand(1, num_points, 3).float().to(device)
@@ -637,11 +654,10 @@ def run_finetuning(rank, world_size, local_rank, config, config_path, device, us
         if isinstance(train_set[0][0], tuple): # for modelnet_mae_render
             num_points = getattr(train_set, "num_points", train_set[0][0][0].shape[0])
             dummy_input = torch.rand(1, num_points, 3).float().to(device)
-            dummy_input = tuple(dummy_input.clone() for _ in train_set[0][0])
         else:
             num_points = getattr(train_set, "num_points", train_set[0][0].shape[0])
             dummy_input = torch.rand(1, num_points, 3).float().to(device)
-        flops, params = get_model_profile(model, dummy_input)    
+        flops, params = get_model_profile(model, dummy_input)
         logger.info(f"Model Params: {params:,} | FLOPs: {flops / 1e6:.2f} MFLOPs")      
 
     # Loss
