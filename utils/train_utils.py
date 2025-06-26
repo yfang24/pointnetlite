@@ -116,7 +116,7 @@ def smart_collate_fn(batch):  # for modelnet_mae_render
     return data, labels
 
 class RenderMAE(torch.nn.Module):
-    def __init__(encoder, decoder):
+    def __init__(self, encoder, decoder):
         super().__init__()
     def forward(self, x):
         vis_pts, mask_pts = x, x
