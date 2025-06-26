@@ -43,7 +43,7 @@ class PointNetEncoder(nn.Module):
 
         # Feature transformation
         if self.feature_transform:
-            self.feature_stn = STNkd(k=64)
+            self.feature_stn = STNkd(k=hidden_dims[0])
         
         # Shared MLP: 64 -> 128 -> embed_dim
         self.mlp2 = build_shared_mlp(hidden_dims + [embed_dim], conv_dim=1, final_act=False)
