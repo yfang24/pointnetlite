@@ -87,7 +87,7 @@ class ModelNetMAERender(Dataset):
                 continue
             file_list = sorted([f for f in os.listdir(class_dir) if f.endswith('.off')])
 
-            print(f"[{class_name}] {len(file_list)} files")
+            print(f"[{class_idx+1}/{len(self.class_map)}] Class '{class_name}' ({split}): {len(file_list)} files")
             for fname in tqdm(file_list, desc=f"Rendering {class_name}", leave=False):
                 mesh_path = os.path.join(class_dir, fname)
                 mesh = o3d.io.read_triangle_mesh(mesh_path)
