@@ -67,37 +67,11 @@ class PointNetEncoder(nn.Module):
             trans_feat = None
 
         local_feat = x.permute(0, 2, 1)  # (B, N, 64)
+        
         x = self.mlp2(x)  # (B, embed_dim, N)
         global_feat = torch.max(x, dim=2)[0]  # (B, embed_dim)
 
         if self.return_all:
-            global_feat_expanded = global_feat.unsqueeze(2).expand(-1, -1, N)
-            concat_feat = torch.cat([global_feat_expanded, local_feat], dim=1)  # (B, embed_dim+64, N)
             return global_feat, local_feat, trans_feat
         else:
             return global_feat, trans_feat
-
-        
-        B, N, D = x.size()
-        x = x.permute(0, 2, 1)
-        trans = self.stn(x)
-        x = torch.bmm(trans, x)
-
-        x = F.relu(self.bn1(self.conv1(x)))
-
-        if self.feature_transform:
-            trans_feat = self.fstn(x)
-            x = torch.bmm(trans_feat, x)
-        else:
-            trans_feat = None
-
-        point_feat = x  # (B, 64, N)
-        x = F.relu(self.bn2(self.conv2(x)))
-        x = self.bn3(self.conv3(x))  # (B, 1024, N)
-        x = torch.max(x, 2)[0]  # (B, 1024)
-
-        if self.global_feat:
-            return x, trans_feat
-        else:
-            x = x.view(B, 1024, 1).repeat(1, 1, N)
-            return torch.cat([x, point_feat], 1), trans_feat
