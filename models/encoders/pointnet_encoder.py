@@ -10,7 +10,7 @@ class STNkd(nn.Module):
         self.k = k
 
         self.mlp = build_shared_mlp([k, 64, 128, 1024], conv_dim=1, act=act, final_act=True)
-        self.fc = build_fc_layers([1024, 512, 256, k * k], act=act, dropout=dropout, final_bn=False, final_act=False)
+        self.fc = build_fc_layers([1024, 512, 256, k * k], act=act, dropout=dropout)
 
     def forward(self, x):  # x: (B, N, k)
         B = x.size(0)
