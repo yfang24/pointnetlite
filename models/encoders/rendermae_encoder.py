@@ -39,7 +39,8 @@ class RenderMAEEncoder(nn.Module):
         self.norm = nn.LayerNorm(embed_dim)
 
     # def forward(self, vis_pts):
-    def forward(self, vis_pts, mask_pts, reflected_pts):
+    def forward(self, x):
+        vis_pts, mask_pts, reflected_pts = x
         """
         Args:
             vis_pts: (B, N, 3)
