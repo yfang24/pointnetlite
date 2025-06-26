@@ -3,8 +3,9 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 class PointNetSemSegHead(nn.Module):
-    def __init__(self, embed_dim=1088, out_dim=13):
+    def __init__(self, embed_dim=1024 + 64, hidden_dims= [512, 256, 128], out_dim=13):
         super().__init__()
+        
         self.conv1 = nn.Conv1d(embed_dim, 512, 1)
         self.conv2 = nn.Conv1d(512, 256, 1)
         self.conv3 = nn.Conv1d(256, 128, 1)
