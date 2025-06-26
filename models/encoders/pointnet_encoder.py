@@ -26,7 +26,6 @@ class STNkd(nn.Module):
         x = x + iden
         return x.view(B, self.k, self.k)
 
-
 class PointNetEncoder(nn.Module):
     def __init__(self, in_dim=3, embed_dim=1024, hidden_dims=[64, 128], return_all=False, feature_transform=True):
         """
@@ -41,21 +40,44 @@ class PointNetEncoder(nn.Module):
         self.input_stn = STNk(in_dim)
         
         # Shared MLP: input -> 64
-        self.mlp1 = build_shared_mlp([in_dim, hidden_dims[0]], conv_dim=1)
+        self.mlp1 = build_shared_mlp([in_dim, hidden_dims[0]], conv_dim=1, final_act=True)
 
         # Feature transformation
         if self.feature_transform:
             self.feature_stn = STNkd(k=64)
         
-
-        self.conv2 = nn.Conv1d(64, 128, 1)
-        self.conv3 = nn.Conv1d(128, embed_dim, 1)
-        self.bn2 = nn.BatchNorm1d(128)
-        self.bn3 = nn.BatchNorm1d(embed_dim)
-
-        self.relu = nn.ReLU(inplace=True)
-        
+        # Shared MLP: 64 -> 128 -> embed_dim
+        self.mlp2 = build_shared_mlp([64, 128, embed_dim], conv_dim=1, final_act=False)
+          
     def forward(self, x):
+        B, N, D = x.shape
+        x = x.permute(0, 2, 1)  # (B, D, N)
+
+        # Input transform
+        trans_input = self.input_stn(x)
+        x = torch.bmm(trans_input, x)
+
+        x = self.mlp1(x)  # (B, 64, N)
+
+        # Feature transform (optional)
+        if self.feature_transform:
+            trans_feat = self.feature_stn(x)
+            x = torch.bmm(trans_feat, x)
+        else:
+            trans_feat = None
+
+        local_feat = x.permute(0, 2, 1)  # (B, N, 64)
+        x = self.mlp2(x)  # (B, embed_dim, N)
+        global_feat = torch.max(x, dim=2)[0]  # (B, embed_dim)
+
+        if self.return_all:
+            global_feat_expanded = global_feat.unsqueeze(2).expand(-1, -1, N)
+            concat_feat = torch.cat([global_feat_expanded, local_feat], dim=1)  # (B, embed_dim+64, N)
+            return global_feat, local_feat, trans_feat
+        else:
+            return global_feat, trans_feat
+
+        
         B, N, D = x.size()
         x = x.permute(0, 2, 1)
         trans = self.stn(x)
