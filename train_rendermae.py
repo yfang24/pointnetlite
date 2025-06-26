@@ -1,6 +1,7 @@
 import os
 import shutil
 import torch
+import torch.nn as nn
 import time
 import random
 import numpy as np
@@ -28,4 +29,6 @@ outputs = head(vis_token, vis_centers, mask_pts)
 class RenderMAE(nn.Module):
     def __init__(noaug=False):
         super().__init__()
+
+        self.encoder = get_encoder(
     
