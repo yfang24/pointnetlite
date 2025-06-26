@@ -18,7 +18,8 @@ class PointEncoderMLP(nn.Module):
 
 
 class RenderMAEEncoder(nn.Module):
-    def __init__(self, embed_dim=384, depth=12, drop_path=0.1, num_heads=6, noaug=False):  # noaug: whether do masking--False for pretrain, True for finetune
+    def __init__(self, embed_dim=384, depth=12, drop_path=0.1, num_heads=6, 
+                 group_size=32, num_group=64, noaug=False):  # noaug: whether do masking--False for pretrain, True for finetune
         super().__init__()
         self.noaug = noaug
 
