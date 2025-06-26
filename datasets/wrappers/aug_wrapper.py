@@ -40,6 +40,23 @@ class AugWrapper(Dataset):
 
         # for modelnet_mae_render
         if isinstance(data, tuple):
+            # Record original lengths
+            lengths = [p.shape[0] for p in data]
+            total = sum(lengths)
+    
+            # Stack all point clouds
+            stacked = torch.cat(data, dim=0)  # (sum(N), 3)
+    
+            # Augment the stacked point cloud
+            stacked_aug = self._augment(stacked.clone())
+    
+            # Unstack into original shapes
+            splits = torch.split(stacked_aug, lengths)
+            aug_tuple = tuple(splits)
+    
+            return aug_tuple, label
+        
+        if isinstance(data, tuple):
             aug_tuple = tuple(self._augment(p) for p in data)
             return aug_tuple, label
 
