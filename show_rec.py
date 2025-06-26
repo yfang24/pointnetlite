@@ -88,7 +88,7 @@ def main():
                 vis_pts = vis_pts.reshape(-1, 3).cpu().numpy() # (G_visible * S, 3)
                 gt_pts = mask_pts.reshape(-1, 3).cpu().numpy()
 
-                mask_centers = fps(mask_pts, G)  # (B, G, 3)
+                mask_centers = fps(mask_pts, rec_group.size(1))  # (B, G, 3)
                 rec_pts = rec_group + mask_centers.unsqueeze(2)
                 rec_pts = rec_pts.reshape(-1, 3).cpu().numpy() # # (G_masked * S, 3)               
 
