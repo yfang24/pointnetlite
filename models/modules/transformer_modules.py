@@ -2,12 +2,16 @@ import torch
 import torch.nn as nn
 from timm.layers import DropPath
 
+from models.modules.builders import build_fc_layers
+
 # feed forward layer in transformer block
 class Mlp(nn.Module):
     def __init__(self, in_dim, hidden_dim=None, out_dim=None, drop=0.):
         super().__init__()
         hidden_dim = hidden_dim or in_dim
         out_dim = out_dim or in_dim
+
+        
         self.fc1 = nn.Linear(in_dim, hidden_dim)
         self.act = nn.GELU()
         self.fc2 = nn.Linear(hidden_dim, out_dim)
