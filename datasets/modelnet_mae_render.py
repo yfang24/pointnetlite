@@ -79,7 +79,7 @@ class ModelNetMAERender(Dataset):
         return self.data[idx], self.labels[idx]
 
     def _process_and_render(self):
-        data, labels = []
+        data, labels = [], []
 
         for class_name, label in self.class_map.items():
             class_dir = os.path.join(self.root_dir, class_name, self.split)
