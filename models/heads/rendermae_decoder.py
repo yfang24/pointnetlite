@@ -21,11 +21,11 @@ class RenderMAEDecoder(nn.Module):
         self.blocks = TransformerEncoder(
             embed_dim=embed_dim,
             depth=depth,
-            drop_path_rate=dpr,
+            drop_path=dpr,
             num_heads=num_heads,
         )
         self.norm = nn.LayerNorm(embed_dim)
-
+        
         self.rec_head = build_shared_mlp([embed_dim, 256, 128, out_dim], conv_dim=1)
 
     # def forward(self, vis_token, vis_pts, reflected_pts):
