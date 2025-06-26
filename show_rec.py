@@ -99,7 +99,7 @@ def main():
                 gt_pts = mask_group.unsqueeze(0) + mask_centers.unsqueeze(2)
                 gt_pts = gt_pts.reshape(-1, 3).cpu().numpy()
 
-                viz_pcds.append([vis, mask, vis_pts, rec_pts, gt_pts])
+                viz_pcds.extend([vis, mask, vis_pts, rec_pts, gt_pts])
                 
                 class_name = inv_class_map[label]
                 viz_class_names.append(class_name)
@@ -108,15 +108,15 @@ def main():
                 if len(shown) >= num_viz:
                     break
 
-        all_vis, all_mask, vis_all, rec_all, gt_all = zip(*viz_pcds)
-        viz_pcds = list(all_vis + all_mask + vis_all + rec_all + gt_all)
+        # all_vis, all_mask, vis_all, rec_all, gt_all = zip(*viz_pcds)
+        # viz_pcds = list(all_vis + all_mask + vis_all + rec_all + gt_all)
         
         print(f"\n[Visualization Summary]")
         print(f"- Each column is a single object from classes: {viz_class_names}")
         print(f"- Row 1: Visible")
         print(f"- Row 2: Reconstructed")
         print(f"- Row 3: Ground Truth")
-        viz_pcd(viz_pcds, spacing=2, rows=5)
+        viz_pcd(viz_pcds, spacing=2, rows=args.viz_reconstruction)
         
 if __name__ == "__main__":
     main()
