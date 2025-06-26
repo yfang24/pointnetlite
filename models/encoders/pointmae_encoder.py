@@ -3,7 +3,6 @@ import torch.nn as nn
 
 from utils.pcd_utils import fps, knn_group, group_points
 from models.modules.transformer_modules import TransformerEncoder
-from models.modules.builders import build_shared_mlp
 
 # encode grouped point cloud using pointnet-like encoder
 class PointGroupEncoder(nn.Module):
