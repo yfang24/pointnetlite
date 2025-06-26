@@ -1,6 +1,5 @@
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
 class DGCNNClsHead(nn.Module):
     def __init__(self, embed_dim=1024, hidden_dims=[512, 256], out_dim=40, dropout=0.5):
