@@ -1,9 +1,11 @@
 train_dataset: 
-  name: modelnet
+  name: modelnet_render
   args:
     root_dir: modelnet40_manually_aligned
     class_map: modelnet11
     split: train
+    num_views: 3
+    single_view: false
   transform:
 #    - name: rotate
 #      args: 
@@ -24,31 +26,18 @@ test_dataset:
 #    - name: rotate
 #      args: 
 #        angle_deg: 30
-  
+         
 encoder: 
-  name: pointmae_encoder
-  args:
-    mask_type: block
-    noaug: true
+  name: pointnetlite_encoder
+  args: {}
 
 head: 
-  name: pointmae_cls_head
+  name: pointnet_cls_head
   args:
     out_dim: 11
 
 loss: cross_entropy
 
-optimizer:
-  name: adamw
-  args:
-    lr: 0.0005
-    weight_decay: 0.05
-    
-scheduler:
-  name: coslr
-  args:
-    initial_epochs: 10
-    
-epochs: 300
+epochs: 200
 batch_size: 32
 ddp: false

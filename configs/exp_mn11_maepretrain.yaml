@@ -19,14 +19,6 @@ val_dataset:
     root_dir: modelnet40_manually_aligned
     class_map: modelnet11
     split: test
-  transform:
-#    - name: rotate
-#      args: 
-#        angle_deg: 30
-    - name: aug
-      args:
-        apply_scale: true
-        apply_rotation: true # y-axis random rotation
 
 test_dataset: 
   name: scanobjectnn
@@ -38,7 +30,9 @@ test_dataset:
 
 encoder: 
   name: pointmae_encoder
-  args: {}
+  args:
+    mask_type: block
+    noaug: false
 
 head: 
   name: pointmae_decoder
@@ -51,6 +45,7 @@ optimizer:
   args:
     lr: 0.001
     weight_decay: 0.05
+    
 scheduler:
   name: coslr
   args:
@@ -58,5 +53,5 @@ scheduler:
     
 epochs: 300
 batch_size: 128
-ddp: true
+ddp: false
 pretrain: true
