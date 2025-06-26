@@ -2,23 +2,15 @@ import torch
 import torch.nn as nn
 from timm.layers import trunc_normal_
 
+from models.modules.builders import build_fc_layers
+
 class PointMAEClsHead(nn.Module):
     def __init__(self, embed_dim=384, out_dim=40):
         super().__init__()
         self.cls_token = nn.Parameter(torch.zeros(1, 1, embed_dim))
         self.cls_pos = nn.Parameter(torch.randn(1, 1, embed_dim))
-
-        self.cls_head = nn.Sequential(
-            nn.Linear(embed_dim * 2, 256),
-            nn.BatchNorm1d(256),
-            nn.ReLU(inplace=True),
-            nn.Dropout(0.5),
-            nn.Linear(256, 256),
-            nn.BatchNorm1d(256),
-            nn.ReLU(inplace=True),
-            nn.Dropout(0.5),
-            nn.Linear(256, out_dim)
-        )
+        
+        self.cls_head = build_fc_layers([embed_dim * 2, 256, 256, out_dim], linear_bias=True, act=nn.ReLU(inplace=True), dropout=0.5)
 
         nn.init.trunc_normal_(self.cls_token, std=0.02)
         nn.init.trunc_normal_(self.cls_pos, std=0.02)
