@@ -130,7 +130,7 @@ if __name__ == "__main__":
         root_dir=DATA_DIR,
         class_map=CLASS_MAP_PATH,
         split=split,
-        single_view=False
+        single_view=True
     )
             
     # Pick a sample object
