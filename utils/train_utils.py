@@ -141,10 +141,10 @@ def train_one_epoch(epoch, encoder, head, dataloader, loss_fn, optimizer, schedu
         loss.backward()
         optimizer.step()
 
-        total_loss += loss.item() * inputs.size(0)
+        total_loss += loss.item() * targets.size(0)
         preds = outputs.argmax(dim=1)
         correct += preds.eq(targets).sum().item()
-        total += inputs.size(0)
+        total += targets.size(0)
 
     if isinstance(scheduler, CosineLRScheduler):
         scheduler.step(epoch)
@@ -186,10 +186,10 @@ def evaluate(encoder, head, dataloader, loss_fn, device, logger=None, rotation_v
             outputs = head(encoder(inputs))
             loss = loss_fn(outputs, targets)
 
-            total_loss += loss.item() * inputs.size(0)
+            total_loss += loss.item() * targets.size(0)
             preds = outputs.argmax(dim=1)
             correct += preds.eq(targets).sum().item()
-            total += inputs.size(0)
+            total += targets.size(0)
 
             all_preds.append(preds.cpu().numpy())
             all_targets.append(targets.cpu().numpy())
@@ -407,8 +407,8 @@ def pretrain_one_epoch(epoch, encoder, head, dataloader, loss_fn, optimizer, sch
         loss.backward()
         optimizer.step()
 
-        total_loss += loss.item() * inputs.size(0)
-        total += inputs.size(0)
+        total_loss += loss.item() * targets.size(0)
+        total += targets.size(0)
 
     if isinstance(scheduler, CosineLRScheduler):
         scheduler.step(epoch)
@@ -446,8 +446,8 @@ def pretrain_evaluate(encoder, head, dataloader, loss_fn, device, logger=None):
             pred, target = head(encoder(inputs))
 
             loss = loss_fn(pred, target)
-            total_loss += loss.item() * inputs.size(0)
-            total += inputs.size(0)
+            total_loss += loss.item() * targets.size(0)
+            total += targets.size(0)
 
     end_time = time.time()
     mem_used = torch.cuda.max_memory_allocated(device) / 1024**2  # MB
