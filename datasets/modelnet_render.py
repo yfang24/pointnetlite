@@ -134,14 +134,20 @@ if __name__ == "__main__":
     )
             
     # Pick a sample object
-    print("[ModelNetRender] Collecting all vuews of a sample object for visualization...")
-    idx = 0
+    print("[ModelNetRender] Collecting all views of a sample object for visualization...")
+    
+    class_name = "toilet"
+    
     num_views = dataset.num_views
-    start = idx * num_views
-    end = (idx + 1) * num_views
-    views = dataset.data[start:end].cpu().numpy()
-    label = dataset.labels[start].cpu().numpy()
-    class_name = inv_class_map[int(label)]
+    for idx in range(len(dataset)):    
+        start = idx * num_views
+        end = (idx + 1) * num_views    
+        label = dataset.labels[start].cpu().numpy()
+        
+        if class_name is inv_class_map[int(label)]:          
+            views = dataset.data[start:end].cpu().numpy()
+        else:
+            continue
     
     # Visualize all views together
     print(f"\n[Sample {idx}] Class: {class_name}, Views: {num_views}, Points per view: {views[0].shape[0]}")    
