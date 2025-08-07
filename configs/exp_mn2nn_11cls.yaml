@@ -38,4 +38,5 @@ loss: cross_entropy
 
 epochs: 200
 batch_size: 32
-ddp: true
+ddp: false
+
