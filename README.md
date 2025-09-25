@@ -36,6 +36,7 @@ Despite its compact design, it delivers exceptional performance, especially in d
   
 ## 🛠️ To-Do
 
+- Integration of PointM2AE to be finished
 - Including more baseline models
 
 ## 📁 Project Structure
