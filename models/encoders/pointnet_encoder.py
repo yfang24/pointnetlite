@@ -4,7 +4,7 @@ import torch.nn as nn
 from models.modules.builders import build_shared_mlp, build_fc_layers
 
 # A Spatial Transformer Network (STN) that learns a kxk transformation matrix.
-class STNkd(nn.Module):
+class STNk(nn.Module):
     def __init__(self, k=64, act=nn.ReLU(inplace=True), dropout=0.0):
         super().__init__()
         self.k = k
@@ -12,10 +12,9 @@ class STNkd(nn.Module):
         self.mlp = build_shared_mlp([k, 64, 128, 1024], conv_dim=1, act=act, final_act=True)
         self.fc = build_fc_layers([1024, 512, 256, k * k], act=act, dropout=dropout)
 
-    def forward(self, x):  # x: (B, N, k)
+    def forward(self, x):  # x: (B, k, N)
         B = x.size(0)
-        
-        x = x.permute(0, 2, 1)  # (B, k, N)        
+              
         x = self.mlp(x)                          # (B, 1024, N)
         x = torch.max(x, dim=2)[0]              # (B, 1024)
         x = self.fc(x)                           # (B, k*k)
@@ -26,9 +25,9 @@ class STNkd(nn.Module):
         return x.view(B, self.k, self.k)
 
 class PointNetEncoder(nn.Module):
-    def __init__(self, in_dim=3, embed_dim=1024, hidden_dims=[64, 128], return_all=False, feature_transform=True):
+    def __init__(self, in_dim=3, embed_dim=1024, hidden_dims=[64, 128], feature_transform=True, return_all=False):
         """
-        return_all (bool): If True, return global_feat (B, embed_dim), local_feat (B, N, embed_dim)
+        return_all (bool): If True, return global_feat (B, embed_dim), trans_feat, local_feat (B, N, embed_dim)
         feature_transform (bool): Whether to apply a second STN on 64-dim features
         """
         super().__init__()
@@ -43,15 +42,14 @@ class PointNetEncoder(nn.Module):
 
         # Feature transformation
         if self.feature_transform:
-            self.feature_stn = STNkd(k=hidden_dims[0])
+            self.feature_stn = STNk(k=hidden_dims[0])
         
         # Shared MLP: 64 -> 128 -> embed_dim
         self.mlp2 = build_shared_mlp(hidden_dims + [embed_dim], conv_dim=1, final_act=False)
           
     def forward(self, x):
-        B, N, D = x.shape
-        x = x.permute(0, 2, 1)  # (B, D, N)
-
+        x = x.permute(0, 2, 1)  # (B, D, N) 
+        
         # Input transform
         trans_input = self.input_stn(x)
         x = torch.bmm(trans_input, x)
@@ -71,6 +69,6 @@ class PointNetEncoder(nn.Module):
         global_feat = torch.max(x, dim=2)[0]  # (B, embed_dim)
 
         if self.return_all:
-            return global_feat, local_feat, trans_feat
+            return global_feat, trans_feat, local_feat
         else:
             return global_feat, trans_feat

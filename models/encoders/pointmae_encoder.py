@@ -3,60 +3,56 @@ import torch.nn as nn
 
 from utils.pcd_utils import fps, knn_group, group_points
 from models.modules.transformer_modules import TransformerEncoder
-from models.modules.builders import build_shared_mlp
+from models.encoders.pointnetlite_encoder import PointNetLiteEncoder
 
 class PointGroupEncoder(nn.Module):
-    def __init__(self, in_dim=3, embed_dim=1024):
+    def __init__(self, in_dim=3, embed_dim=384):
         super().__init__()
-        self.mlp = build_shared_mlp([in_dim] + [64, 128] + [embed_dim], conv_dim=2, act=nn.ReLU(inplace=True), final_act=False)
-        
-    def forward(self, x):  # (B, G, N, 3)
-        x = x.permute(0, 3, 2, 1)  # (B, C_in, k, G)
-        x = self.mlp(x).max(dim=2)[0]  # (B, C_out, k, G), max over neighborhood k -> (B, C_out, G) 
-        x = x.permute(0, 2, 1)  # (B, G, C_out)
-        return x
+        self.embed_dim = embed_dim
+        self.first_conv = nn.Sequential(
+            nn.Conv1d(in_dim, 128, 1),
+            nn.BatchNorm1d(128),
+            nn.ReLU(inplace=True),
+            nn.Conv1d(128, 256, 1)
+        )
+        self.second_conv = nn.Sequential(
+            nn.Conv1d(512, 512, 1),
+            nn.BatchNorm1d(512),
+            nn.ReLU(inplace=True),
+            nn.Conv1d(512, embed_dim, 1)
+        )
 
-# class PointGroupEncoder(nn.Module):
-#     def __init__(self, in_dim=3, embed_dim=1024):
-#         super().__init__()
-#         self.embed_dim = embed_dim
-#         self.first_conv = nn.Sequential(
-#             nn.Conv1d(in_dim, 128, 1),
-#             nn.BatchNorm1d(128),
-#             nn.ReLU(inplace=True),
-#             nn.Conv1d(128, 256, 1)
-#         )
-#         self.second_conv = nn.Sequential(
-#             nn.Conv1d(512, 512, 1),
-#             nn.BatchNorm1d(512),
-#             nn.ReLU(inplace=True),
-#             nn.Conv1d(512, embed_dim, 1)
-#         )
-
-#     def forward(self, x):
-#         B, G, N, _ = x.shape                                       # (B, G, N, 3)
-#         x = x.view(B * G, N, 3).transpose(2, 1)                    # (BG, 3, N)
-#         x = self.first_conv(x)                                     # (BG, 256, N)
-#         x_global = torch.max(x, dim=2, keepdim=True)[0]            # (BG, 256, 1)
-#         x = torch.cat([x_global.expand(-1, -1, N), x], dim=1)      # (BG, 512, N)
-#         x = self.second_conv(x)                                    # (BG, D, N)
-#         x = torch.max(x, dim=2)[0]                                 # (BG, D)
-#         return x.view(B, G, self.embed_dim)                  # (B, G, D)
+    def forward(self, x):
+        B, G, N, _ = x.shape                                       # (B, G, N, 3)
+        x = x.view(B * G, N, 3).transpose(2, 1)                    # (BG, 3, N)
+        x = self.first_conv(x)                                     # (BG, 256, N)
+        x_global = torch.max(x, dim=2, keepdim=True)[0]            # (BG, 256, 1)
+        x = torch.cat([x_global.expand(-1, -1, N), x], dim=1)      # (BG, 512, N)
+        x = self.second_conv(x)                                    # (BG, D, N)
+        x = torch.max(x, dim=2)[0]                                 # (BG, D)
+        return x.view(B, G, self.embed_dim)                  # (B, G, D)
         
         
 class PointMAEEncoder(nn.Module):
     def __init__(self, embed_dim=384, depth=12, drop_path=0.1, num_heads=6, 
                  mask_ratio=0.6, mask_type='rand', group_size=32, num_group=64, 
-                 noaug=False):  # noaug: whether do masking--False for pretrain, True for finetune
+                 group_encoder='default', noaug=False):
+        '''
+        noaug: whether do masking--False for pretrain, True for finetune;
+        group_encoder: encoder for grouped points; options: 'default', 'pointnetlite'
+        '''
         super().__init__()        
         self.group_size = group_size
         self.num_group = num_group
         self.mask_ratio = mask_ratio
-        self.embed_dim = embed_dim
         self.mask_type = mask_type
         self.noaug = noaug
         
-        self.encoder = PointGroupEncoder(embed_dim=embed_dim)
+        if group_encoder == 'default':
+            self.group_encoder = PointGroupEncoder(embed_dim=embed_dim)            
+        else:
+            self.group_encoder = PointNetLiteEncoder(embed_dim=embed_dim, conv_dim=2)            
+        
                      
         self.pos_embed = nn.Sequential(
             nn.Linear(3, 128),
@@ -65,13 +61,12 @@ class PointMAEEncoder(nn.Module):
         )
 
         dpr = [x.item() for x in torch.linspace(0, drop_path, depth)]
-        self.blocks = TransformerEncoder(
+        self.encoder = TransformerEncoder(
             embed_dim=embed_dim,
             depth=depth,
             drop_path=dpr,
             num_heads=num_heads,
         )                     
-        self.norm = nn.LayerNorm(embed_dim)
                      
         self.apply(self._init_weights)
 
@@ -117,9 +112,9 @@ class PointMAEEncoder(nn.Module):
             mask[i, sorted_idx[:num_mask]] = True
         return mask  # (B, G)
    
-    def forward(self, point_cloud): # (B, N, 3)
-        center = fps(point_cloud, self.num_group)  # (B, G, 3)
-        neighborhood = group_points(point_cloud, idx=knn_group(point_cloud, center, self.group_size))  - center.unsqueeze(2) # (B, G, S, 3)
+    def forward(self, pc): # (B, N, 3)
+        center = fps(pc, self.num_group)  # (B, G, 3)
+        neighborhood = group_points(pc, idx=knn_group(pc, center, self.group_size))  - center.unsqueeze(2) # (B, G, S, 3)
 
         noaug = self.noaug
         if self.mask_type == 'rand':
@@ -127,13 +122,12 @@ class PointMAEEncoder(nn.Module):
         else:
             mask = self._mask_center_block(center, noaug)
 
-        group_tokens = self.encoder(neighborhood)                # (B, G, D)
-        B, G, D = group_tokens.shape
-        x_vis = group_tokens[~mask].reshape(B, -1, D)            # (B, G_visible, D)
+        group_token = self.group_encoder(neighborhood)                # (B, G, D)
+        B, G, D = group_token.shape
+        vis_token = group_token[~mask].reshape(B, -1, D)            # (B, G_visible, D)
 
-        pos = self.pos_embed(center[~mask].reshape(B, -1, 3))    # (B, G_visible, D)
-        x_vis = self.blocks(x_vis, pos)                          # (B, G_visible, D)
-        x_vis = self.norm(x_vis)
+        vis_pos = self.pos_embed(center[~mask].reshape(B, -1, 3))    # (B, G_visible, D)
+        x_vis = self.encoder(vis_token, vis_pos)                          # (B, G_visible, D)
 
         if noaug:
             return x_vis

@@ -1,0 +1,11 @@
+{
+    "python.defaultInterpreterPath": "/mmfs1/home/yfang24/myenv/bin/python",
+
+    // for Pylance Crash
+    //"python.analysis.languageServerMode": "light",
+    //"python.analysis.diagnosticMode": "openFilesOnly",
+
+    // for Disabling Jedi
+    //"python.languageServer": "Pylance",
+
+}

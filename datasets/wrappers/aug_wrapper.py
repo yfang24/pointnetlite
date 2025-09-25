@@ -13,9 +13,6 @@ class AugWrapper(Dataset):
         self.base_dataset = base_dataset
         self.apply_scale = apply_scale
         self.apply_rotation = apply_rotation
-        self.class_map = getattr(base_dataset, "class_map", None)
-        self.data = getattr(base_dataset, "data", None)
-        self.labels = getattr(base_dataset, "labels", None)
         
     def __len__(self):
         return len(self.base_dataset)
@@ -37,31 +34,11 @@ class AugWrapper(Dataset):
     #     return points, label
 
     def __getitem__(self, idx):
-        data, label = self.base_dataset[idx]
-
-        # for modelnet_mae_render
-        if isinstance(data, tuple):
-            # Record original lengths
-            lengths = [p.shape[0] for p in data]
-            total = sum(lengths)
-    
-            # Stack all point clouds
-            stacked = torch.cat(data, dim=0)  # (sum(N), 3)
-    
-            # Augment the stacked point cloud
-            stacked_aug = self._augment(stacked.clone())
-    
-            # Unstack into original shapes
-            splits = torch.split(stacked_aug, lengths)
-            aug_tuple = tuple(splits)
-    
-            return aug_tuple, label
+        out = self.base_dataset[idx]
+        *data, label = out        
         
-        if isinstance(data, tuple):
-            aug_tuple = tuple(self._augment(p) for p in data)
-            return aug_tuple, label
-
-        # fallback: (points, label)
+        if len(data) == 1:
+            return self._augment(data[0]), label
         else:
-            data = self._augment(data)
-            return data, label
+            aug_data = tuple(self._augment(d) for d in data)
+            return (*aug_data, label)   # unpack so it matches base_dataset format

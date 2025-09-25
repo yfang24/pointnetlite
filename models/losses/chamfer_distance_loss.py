@@ -1,18 +1,35 @@
 import torch
 import torch.nn as nn
+from pytorch3d.loss import chamfer_distance
 
+#=====
+# Using PyTorch3D funcs
+#=====
+class ChamferDistance(nn.Module):
+    def __init__(self, norm: int = 2):
+        super().__init__()
+        self.norm = norm
+
+    def forward(self, pred: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
+        loss, _ = chamfer_distance(pred, target, norm=self.norm)
+        return loss
+
+class ChamferDistanceL2(ChamferDistance):
+    def __init__(self):
+        super().__init__(norm=2)
+
+
+class ChamferDistanceL1(ChamferDistance):
+    def __init__(self):
+        super().__init__(norm=1)
+
+'''
+#=====
+# Using my PyTorch funcs
+#=====
 def square_distance(src, dst):
-    """
-    Calculate squared distances between each pair of points.
-    src: (B, N, C)
-    dst: (B, M, C)
-    return: (B, N, M)
-    """
-    B, N, _ = src.shape
-    _, M, _ = dst.shape
-    dist = -2 * torch.matmul(src, dst.transpose(2, 1))  # (B, N, M)
-    dist += torch.sum(src ** 2, dim=-1).unsqueeze(2)    # (B, N, 1)
-    dist += torch.sum(dst ** 2, dim=-1).unsqueeze(1)    # (B, 1, M)
+    # torch.cdist computes L2 distances; we square them
+    dist = torch.cdist(src, dst, p=2) ** 2   # (B, N, M)
     return dist
 
 def chamfer_distance_l2(src, dst):
@@ -43,3 +60,4 @@ class ChamferDistanceL2(nn.Module):
 class ChamferDistanceL1(nn.Module):
     def forward(self, pred, target):
         return chamfer_distance_l1(pred, target)
+'''

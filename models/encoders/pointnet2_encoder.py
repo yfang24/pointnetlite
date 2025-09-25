@@ -28,12 +28,16 @@ class PointNet2Encoder(nn.Module):
         self.sa3_mlp_dims = [256, 512, 1024]
 
         # for msg, sa layer input is the concatenation of features from all msg branches of earlier sa layer       
-        self.sa1_mlps = [build_shared_mlp([in_dim] + mlp, conv_dim=2, final_act=True) 
-                         for mlp in self.sa1_params["mlps"]]
+        self.sa1_mlps = nn.ModuleList(
+            [build_shared_mlp([in_dim] + mlp, conv_dim=2, final_act=True) 
+            for mlp in self.sa1_params["mlps"]]
+        )
 
         sa2_input_dim = in_dim + sum(m[-1] for m in self.sa1_params["mlps"])
-        self.sa2_mlps = [build_shared_mlp([sa2_input_dim] + mlp, conv_dim=2, final_act=True) 
-                         for mlp in self.sa2_params["mlps"]]
+        self.sa2_mlps = nn.ModuleList(
+            [build_shared_mlp([sa2_input_dim] + mlp, conv_dim=2, final_act=True) 
+            for mlp in self.sa2_params["mlps"]]
+        )
 
         sa3_input_dim = in_dim + sum(m[-1] for m in self.sa2_params["mlps"])
         self.sa3_mlp = build_shared_mlp([sa3_input_dim] + self.sa3_mlp_dims, conv_dim=1, final_act=True)

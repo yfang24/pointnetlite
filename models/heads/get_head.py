@@ -1,7 +1,6 @@
 from models.heads.pointnet_cls_head import PointNetClsHead
 from models.heads.pointnet_semseg_head import PointNetSemSegHead
 from models.heads.pointmae_decoder import PointMAEDecoder
-from models.heads.rendermae_decoder import RenderMAEDecoder
 from models.heads.pointmae_cls_head import PointMAEClsHead
 from models.heads.dgcnn_cls_head import DGCNNClsHead
 
@@ -9,7 +8,6 @@ HEAD_REGISTRY = {
     "pointnet_cls_head": PointNetClsHead,
     "pointnet_semseg_head": PointNetSemSegHead,
     "pointmae_decoder": PointMAEDecoder,
-    "rendermae_decoder": RenderMAEDecoder,
     "pointmae_cls_head": PointMAEClsHead,
     "dgcnn_cls_head": DGCNNClsHead
 }

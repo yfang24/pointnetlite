@@ -1,25 +1,32 @@
 import os
+from pathlib import Path
 import pickle
 import numpy as np
 import open3d as o3d
-import torch
 from torch.utils.data import Dataset
+from tqdm import tqdm
 
 import utils.mesh_utils as mesh_utils
 from configs.load_class_map import load_class_map
 
+PROJ_ROOT = Path(__file__).resolve().parents[2]
+
 class ModelNetMesh(Dataset):
-    def __init__(self, root_dir, class_map, split='train', cache_dir=None, use_cache=True):
-        self.root_dir = root_dir
+    def __init__(self, root='modelnet40_manually_aligned', class_map='modelnet11', 
+                split='train', cache_dir=None, use_cache=True):
+        self.root_dir = PROJ_ROOT / "data" / root
+        
         self.split = split
         self.class_map = class_map if isinstance(class_map, dict) else load_class_map(class_map)
 
-        self.cache_dir = cache_dir or os.path.join(root_dir, "_cache")
+        self.num_classes = len(set(self.class_map.values()))
+
+        self.cache_dir = cache_dir or os.path.join(self.root_dir, "_cache")
         os.makedirs(self.cache_dir, exist_ok=True)
 
         self.cache_file = os.path.join(
             self.cache_dir,
-            f"modelnetmesh_{split}_{len(set(self.class_map.values()))}cls.pkl"
+            f"modelnetmesh_{split}_{self.num_classes}cls.pkl"
         )
 
         if use_cache and os.path.exists(self.cache_file):
@@ -30,10 +37,10 @@ class ModelNetMesh(Dataset):
                 self.faces_list = cached['faces']
                 self.labels = cached['labels']
         else:
-            print(f"[ModelNetMesh] Processing mesh files for split '{split}'...")
-            self.verts_list, self.faces_list, self.labels = self._process_and_cache()
+            print(f"[ModelNetMesh] Processing raw data...")
+            self.verts_list, self.faces_list, self.labels = self._process_raw_data()
             if use_cache:
-                print(f"[ModelNetMesh] Saving mesh cache to {self.cache_file}")
+                print(f"\n[ModelNetMesh] Saving processed data to {self.cache_file}")
                 with open(self.cache_file, 'wb') as f:
                     pickle.dump({
                         'verts': self.verts_list,
@@ -41,31 +48,82 @@ class ModelNetMesh(Dataset):
                         'labels': self.labels
                     }, f)
 
-        print(f"[ModelNetMesh] Loaded {len(self.labels)} samples from {split} split.\n")
-
-    def _process_and_cache(self):
-        verts_list, faces_list, labels = [], [], []
-        for class_name, label in self.class_map.items():
-            class_dir = os.path.join(self.root_dir, class_name, self.split)
-            if not os.path.isdir(class_dir):
-                continue
-            files = [f for f in os.listdir(class_dir) if f.endswith('.off')]
-            for fname in tqdm(files, total=len(files), desc=f"Processing '{class_name}'", leave=False):
-                mesh_path = os.path.join(class_dir, fname)
-                mesh = o3d.io.read_triangle_mesh(mesh_path)
-                mesh = mesh_utils.align_mesh(mesh, class_name)
-                mesh = mesh_utils.normalize_mesh(mesh)
-
-                verts = np.asarray(mesh.vertices, dtype=np.float32)
-                faces = np.asarray(mesh.triangles, dtype=np.int64)
-
-                verts_list.append(torch.tensor(verts))
-                faces_list.append(torch.tensor(faces))
-                labels.append(label)
-        return verts_list, faces_list, torch.tensor(labels, dtype=torch.long)
+        print(f"[ModelNetMesh] Loaded {len(self.labels)} samples from {split} split across {self.num_classes} classes.\n")
 
     def __len__(self):
         return len(self.labels)
 
     def __getitem__(self, idx):
         return self.verts_list[idx], self.faces_list[idx], self.labels[idx]
+    
+    def _process_raw_data(self):
+        verts_list, faces_list, labels = [], [], []
+    
+        for class_idx, (class_name, label) in enumerate(self.class_map.items()):
+            split_dirs = ['train', 'test'] if self.split == 'all' else [self.split]
+    
+            for split in split_dirs:
+                class_split_dir = os.path.join(self.root_dir, class_name, split)
+                if not os.path.isdir(class_split_dir):
+                    continue
+                file_list = sorted([f for f in os.listdir(class_split_dir) if f.endswith('.off')])
+    
+                tqdm.write(f"\n[{class_idx+1}/{len(self.class_map)}] Class {label:2d} '{class_name}' ({split}): {len(file_list)} files")
+                for fname in tqdm(
+                    file_list,
+                    desc=f"    Processing",
+                    leave=False
+                ):
+                    mesh_path = os.path.join(class_split_dir, fname)
+                    mesh = o3d.io.read_triangle_mesh(mesh_path)
+                    mesh = mesh_utils.align_mesh(mesh, class_name)
+                    mesh = mesh_utils.normalize_mesh(mesh)
+    
+                    verts = np.asarray(mesh.vertices, dtype=np.float32)
+                    faces = np.asarray(mesh.triangles, dtype=np.int64)
+
+                    verts_list.append(verts)
+                    faces_list.append(faces)
+                    labels.append(label)
+
+        return verts_list, faces_list, np.array(labels, dtype=np.int64)
+
+if __name__ == "__main__":
+    # Set seeds
+    from utils.train_utils import set_seed
+    set_seed(42)
+    
+    dataset = ModelNetMesh(
+        root="modelnet40_manually_aligned", 
+        class_map="modelnet11",
+        # split='test'
+    )
+
+    from collections import defaultdict
+
+    label_to_classnames = defaultdict(list)
+    for name, label in dataset.class_map.items():
+        label_to_classnames[label].append(name)
+
+    # Collect one example per class for visualization
+    viz = True
+    if viz: 
+        seen_labels = set()
+        meshes = []
+    
+        print("[ModelNetMesh] Collecting 1 sample per class for visualization...")
+        for i in range(len(dataset)):
+            verts, faces, label = dataset[i]
+
+            if label not in seen_labels:
+                mesh = mesh_utils.init_mesh(verts, faces)
+                meshes.append(mesh)
+                seen_labels.add(label)
+
+                print(f"  - Class {label:2d} ({', '.join(label_to_classnames[label]):<20})")
+
+            if len(seen_labels) == dataset.num_classes:
+                break
+    
+        print(f"\nVisualizing {dataset.num_classes} CAD models (1 per class)...")
+        mesh_utils.viz_mesh(meshes)

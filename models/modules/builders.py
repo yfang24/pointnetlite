@@ -1,19 +1,18 @@
 import torch
 import torch.nn as nn
 
-# shared mlp = conv + bn + act
-# last mlp = conv + bn  (typically)
 def build_shared_mlp(dims, conv_dim=1, conv_bias=True, act=nn.ReLU(inplace=True), final_act=False):
     '''
+    default = n * (conv + bn + act) + (conv + bn)
     conv_dim: default=1; set conv_dim=2 if using grouped points (B, G, S, in_dim)
     to apply:
         if conv_dim=1:
             x = x.permute(0, 2, 1)  # (B, in_dim, N)
             x = self.mlp(x).max(dim=2)[0]  # (B, embed_dim)
         else:
-            x = x.permute(0, 3, 2, 1)  # (B, C_in, k, G)
-            x = mlp(x).max(dim=2)[0]  # (B, C_out, k, G), max over neighborhood k -> (B, C_out, G) 
-            x = x.permute(0, 2, 1)  # (B, G, C_out)
+            x = x.permute(0, 3, 2, 1)  # (B, in_dim, S, G)
+            x = self.mlp(x).max(dim=2)[0]  # (B, embed_dim, S, G), max over neighborhood S -> (B, embed_dim, G) 
+            x = x.permute(0, 2, 1)  # (B, G, embed_dim)
     '''
     assert conv_dim in [1, 2], "conv_dim must be 1 or 2"
     conv = nn.Conv1d if conv_dim == 1 else nn.Conv2d
@@ -33,10 +32,11 @@ def build_shared_mlp(dims, conv_dim=1, conv_bias=True, act=nn.ReLU(inplace=True)
 
     return nn.Sequential(*layers)
 
-# fc_layer = linear + bn + act + dropout
-# final fc = linear
-def build_fc_layers(dims, linear_bias=True, act=nn.ReLU(inplace=True), dropout=0.0):
+
+def build_fc_layers(dims, linear_bias=True, bn=True, act=nn.ReLU(inplace=True), dropout=0.0):
     '''
+    apply linear projection along last dim
+    default = n * (linear + bn + act + dropout) + linear
     dropout: float or list of float(s), dropout rate(s) per layer
     '''
     layers = []
@@ -52,7 +52,8 @@ def build_fc_layers(dims, linear_bias=True, act=nn.ReLU(inplace=True), dropout=0
         layers.append(nn.Linear(in_dim, out_dim, bias=linear_bias))
         
         if i < n_layers - 1:  # Not the final layer
-            layers.append(nn.BatchNorm1d(out_dim))
+            if bn:
+                layers.append(nn.BatchNorm1d(out_dim))
             layers.append(act)
             if dropout[i] > 0:
                 layers.append(nn.Dropout(dropout[i]))

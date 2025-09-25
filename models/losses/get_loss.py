@@ -3,8 +3,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from models.losses.pointnet_loss import PointNetLoss
-from models.losses.chamfer_distance_loss import ChamferDistanceL2, ChamferDistanceL1
 from models.losses.dgcnn_loss import DGCNNLoss
+from models.losses.chamfer_distance_loss import ChamferDistanceL2, ChamferDistanceL1
 
 # Registry of named loss classes or functions
 LOSS_REGISTRY = {
@@ -38,14 +38,8 @@ def get_loss(config):
     # Instantiate class-based loss
     base_loss = loss_entry(**args)
 
-    # If it's PointNetLoss, wrap to accept trans_feat
-    if isinstance(base_loss, PointNetLoss):
-        def loss_fn(pred, target, trans_feat=None, **kwargs):
-            return base_loss(pred, target, trans_feat=trans_feat)
-        return loss_fn
-
     # Generic loss wrapper
-    def loss_fn(pred, target, **kwargs):
-        return base_loss(pred, target)
+    def loss_fn(outputs, target, **kwargs):
+        return base_loss(outputs, target)
     
     return loss_fn

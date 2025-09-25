@@ -1,7 +1,6 @@
 import numpy as np
 import torch
 import copy
-
 import open3d as o3d
 
 from pytorch3d.structures import Meshes
@@ -14,8 +13,8 @@ from pytorch3d.renderer import (
 #===
 #pytorch3d mesh
 #===
-def init_mesh_torch(verts, faces, device='cuda'):
-  return Meshes(verts=[verts], faces=[faces]).to(torch.device(device))
+def init_mesh_torch(verts, faces, device=torch.device('cuda')):
+  return Meshes(verts=[verts], faces=[faces]).to(device)
   
 def sample_mesh_torch(mesh, num_points):
     return sample_points_from_meshes(mesh, num_samples=self.num_points)[0]
@@ -30,15 +29,18 @@ def render_mesh_torch(
     max_attempts: int = 3,
     device: torch.device = torch.device('cuda')
 ) -> torch.Tensor:
+    # determine up
     camera_pos.to(device)
     view_vector = - camera_pos
-    view_vector = view_vector / (torch.norm(view_vector, dim=-1, keepdim=True) + 1e-8)
+    view_vector = view_vector / (torch.norm(view_vector, dim=-1, keepdim=True) + 1e-8)    
     up = torch.tensor([0., 1., 0.], device=device)
     if torch.allclose(torch.abs(torch.dot(view_vector, up)), torch.tensor(1.0, device=view_vector.device), atol=1e-3):
         up = torch.tensor([1., 0., 0.], device=device) # If colinear, switch
+
     R, T = look_at_view_transform(eye=camera_pos[None], up=up[None], device=device) # z=at-eye, x=cross(up, z), y=cross(z, x)
     cameras = FoVPerspectiveCameras(device=device, R=R, T=T, aspect_ratio=1.*image_width/image_height) # FoVPerspectiveCameras, OrthographicCameras
 
+    points = None
     for attempt in range(max_attempts):
         raster_settings = RasterizationSettings(image_size=[image_width, image_height], bin_size=0)
         rasterizer = MeshRasterizer(cameras=cameras, raster_settings=raster_settings)
@@ -70,23 +72,26 @@ def render_mesh_torch(
         if points.shape[0] >= num_points:
             indices = torch.randperm(points.shape[0], device=device)[:num_points]
             points = points[indices]
+            break
         else:
             # Try higher resolution
             # image_size = int(image_size * 2)
             image_width = int(image_width * 2)
             image_height = int(image_height * 2)
+            continue
 
     # Fallback if all attempts failed
-    if points.shape[0] < num_points:
-        pad = num_points - points.shape[0]
-        pad_indices = torch.randint(0, points.shape[0], (pad,), device=device)
-        points = torch.cat([points, points[pad_indices]], dim=0)
-    
-    # center = points.mean(dim=0, keepdim=True)           # (1, 3)
-    # points = points - center                            # center at origin    
-    # scale = torch.norm(points, dim=1).max()             # scalar
-    # points = points / scale                             # scale to unit sphere    
-    # points[:, [0, 2]] *= -1  
+    if points is None or points.shape[0] < num_points:
+        if points is None or points.shape[0] == 0:
+            # no valid points at all: just create dummy ones
+            points = torch.zeros((num_points, 3), device=device)
+        else:
+            pad = num_points - points.shape[0]
+            pad_indices = torch.randint(0, points.shape[0], (pad,), device=device)
+            points = torch.cat([points, points[pad_indices]], dim=0)
+     
+    # points[:, [0, 2]] *= -1
+    # points = pcd_utils.normaliz(points)
     return points
     
 #===
@@ -114,7 +119,7 @@ def align_mesh(mesh, class_name):
 
 def viz_mesh(meshes, spacing=2):
     '''
-    pcds: list of pcd objs; or a single pcd.
+    meshes: list of mesh objs; or a single mesh.
     '''
     if not isinstance(meshes, list):
        tmps = [meshes]

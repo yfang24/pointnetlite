@@ -1,0 +1,56 @@
+dataset: 
+  train:
+    name: modelnet
+    args:
+      root: modelnet40_manually_aligned
+      class_map: modelnet11
+      split: train
+    transform:
+  #    - name: rotate
+  #      args: 
+  #        angle_deg: 30
+      - name: aug
+        args:
+          apply_scale: true
+          apply_rotation: true # y-axis random rotation
+        
+  test: 
+    name: scanobjectnn
+    args:
+      root: main_split_nobg
+      class_map: scanobjectnn11
+      split: test
+      normalize: true
+  #  transform: # used for voting
+  #    - name: rotate
+  #      args: 
+  #        angle_deg: 30
+  
+encoder: 
+  name: pointmae_encoder
+  args:
+    mask_type: block
+    group_encoder: default
+    noaug: true
+
+head: 
+  name: pointmae_cls_head
+  args:
+    out_dim: 11
+
+loss: cross_entropy
+
+optimizer:
+  name: adamw
+  args:
+    lr: 0.0005
+    weight_decay: 0.05
+    
+scheduler:
+  name: coslr
+  args:
+    initial_epochs: 10
+    
+epochs: 300
+batch_size: 32
+ddp: false

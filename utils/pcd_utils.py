@@ -1,54 +1,42 @@
+import os
 import copy
 import torch
 import numpy as np
 import open3d as o3d
 from scipy.spatial.distance import cdist
 from sklearn.neighbors import NearestNeighbors
+from pytorch3d.ops import sample_farthest_points, knn_points, ball_query
 
-def normalize_pcd_tensor(points):
-    center = points.mean(dim=0, keepdim=True)           # (1, 3)
-    points = points - center                            # center at origin    
-    scale = torch.norm(points, dim=1).max()             # scalar
-    points = points / scale                             # scale to unit sphere    
-    return points   
-    
 #=====
-#pointnet++: fps-ball-group
+# Using PyTorch3D funcs
+# Sampling and Grouping; my torch funcs
 # G: num_group; S: group_size
 #=====
-def ball_group(points, centers, radius, nsample):  # nsample=group_size
-    B, G, _ = centers.shape
-    N = points.shape[1]
+def fps(points, n):
+    # sample_farthest_points returns (new_points, indices)
+    sampled_pts, _ = sample_farthest_points(points, K=n)
+    return sampled_pts  # (B, n, 3)
 
-    # Compute squared distance matrix (B, G, N)
-    dist = torch.cdist(centers, points, p=2)  # (B, G, N)
+def knn_group(points, centers, k):
+    # knn_points returns (dists, idx, knn)
+    _, idx, _ = knn_points(centers, points, K=k)
+    return idx  # (B, G, k)
 
-    # Mask out distances greater than radius
-    mask = dist <= radius
-    
-    # Initialize with default index (e.g., nearest or zero)
-    idx = torch.full((B, G, nsample), fill_value=0, device=points.device, dtype=torch.long)
+def ball_group(points, centers, radius, nsample):
+    res = ball_query(centers, points, K=nsample, radius=radius, return_nn=False)  # returns KNN obj (dist, idx, knn if return_nn is True)
+    return res.idx  # (B, G, nsample)
 
-    for b in range(B):
-        for g in range(G):
-            valid = torch.nonzero(mask[b, g], as_tuple=False).squeeze(-1)
-            if valid.numel() >= nsample:
-                idx[b, g] = valid[:nsample]
-            else:
-                # pad by repeating first neighbor
-                pad = valid[0].repeat(nsample - valid.numel())
-                idx[b, g] = torch.cat([valid, pad], dim=0)                
-    return idx
-
-
+'''
 #=====
-#pointmae: fps-knn-group
+# Using my PyTorch funcs
+# Sampling and Grouping; my torch funcs
+# G: num_group; S: group_size
 #=====
 def fps(points, n):
-    '''
+    """
     points: (B, N, 3) torch.Tensor
-    return: (B, n, 3)
-    '''
+    return: (B, n, 3) # n=nsamples
+    """
     B, N, _ = points.shape
     device = points.device
 
@@ -69,33 +57,61 @@ def fps(points, n):
     return sampled_points
 
 def knn_group(points, centers, k):
-    '''
+    """
     points: (B, N, 3)
     centers: (B, G, 3)
     returns: (B, G, k)
-    '''
+    """
     dists = torch.cdist(centers, points)  # (B, G, N)
     idx = dists.topk(k, dim=-1, largest=False)[1]  # (B, G, k)
     return idx
 
+def ball_group(points, centers, radius, nsample):
+    """
+    nsample = max number of group_size
+    """
+    B, G, _ = centers.shape
+    N = points.shape[1]
+
+    # Compute Euclidean distance matrix (B, G, N)
+    dist = torch.cdist(centers, points)  # (B, G, N)
+
+    # Mask out distances greater than radius
+    mask = dist <= radius
+    
+    # Initialize with default index (e.g., nearest or zero)
+    idx = torch.full((B, G, nsample), fill_value=0, device=points.device, dtype=torch.long)
+
+    for b in range(B):
+        for g in range(G):
+            valid = torch.nonzero(mask[b, g], as_tuple=False).squeeze(-1)
+            if valid.numel() >= nsample:
+                idx[b, g] = valid[:nsample]
+            else:
+                # pad by repeating first neighbor
+                pad = valid[0].repeat(nsample - valid.numel())
+                idx[b, g] = torch.cat([valid, pad], dim=0)                
+    return idx
+'''
+
 def group_points(points, idx):
-    '''
+    """
     points: (B, N, 3)
     idx: (B, G, k)
     return: (B, G, k, 3)
-    '''
+    """
     B, N, C = points.shape
-    B, G, K = idx.shape
+    _, G, K = idx.shape
 
     idx_base = torch.arange(B, device=points.device).view(B, 1, 1) * N
-    idx = idx + idx_base
-    idx = idx.view(-1)
+    idx = (idx + idx_base).view(-1)  # flatten into (B*G*K,)
+
     grouped = points.reshape(B * N, C)[idx, :].view(B, G, K, C)
     return grouped
 
 
 #=====
-#my funcs
+# my funcs
 #=====
 def knneigval(points, k=32):
     N = points.shape[0]
@@ -230,7 +246,7 @@ def init_pcd(points, **kwargs):
         pcd.colors = o3d.utility.Vector3dVector(colors / 225.0)   
     return pcd
 
-def viz_pcd(pcds, spacing=2, rows=None):
+def viz_pcd(pcds, spacing=2, rows=None, save_path="viz.png"):
     '''
     pcds: list of pcd objs; or a single pcd.
     '''
@@ -249,7 +265,25 @@ def viz_pcd(pcds, spacing=2, rows=None):
         tmp = copy.deepcopy(pcd)
         tmp = tmp.translate(translation)
         tmps.append(tmp)
-    o3d.visualization.draw_geometries(tmps)
+    
+    # Check if running headless (no DISPLAY or forced backend)
+    headless = (os.environ.get("OPEN3D_RENDERING_BACKEND") in ["egl", "osmesa"]) or (os.environ.get("DISPLAY") is None)
+
+    if not headless:
+        # Normal interactive mode
+        o3d.visualization.draw_geometries(tmps)
+    else:
+        # Headless offscreen rendering
+        print(f"[Visualization] Falling back to offscreen rendering ({save_path})")
+        vis = o3d.visualization.Visualizer()
+        vis.create_window(visible=False)
+        for g in tmps:
+            vis.add_geometry(g)
+        vis.poll_events()
+        vis.update_renderer()
+        vis.capture_screen_image(save_path)
+        vis.destroy_window()
+        print(f"[Visualization] Saved image to {save_path}")
     
 def normalize_pcd(pcd):
     '''
@@ -272,20 +306,28 @@ def rotate_pcd(pcd, rotation_angles):
     tmp = tmp.rotate(rotation_matrix, center=tmp.get_center())
     return tmp
 
-'''
-pcd transformation
-consider right-handed coordinate system (used in 3D graphics)
-points.shape = (num_points, dimension=3 or 6 if with normals)
-'''
+# ===========================
+# pcd transformation
+# consider right-handed coordinate system (used in 3D graphics)
+# points.shape = (num_points, dimension=3 or 6 if with normals)
+# ===========================
 def normalize(points):
     '''
-    normalize into a unit ball
-    '''
-    centroid = np.mean(points, axis=0)
-    points -= centroid # translation, move centroid to origin
-    furthest_distance = np.max(np.linalg.norm(points, axis=1)) # max distance from points to origin (centroid)
-    points /= furthest_distance # scaling
-    return points
+    normalize into a unit sphere
+    '''   
+    if isinstance(points, np.ndarray):
+        centroid = np.mean(points, axis=0, keepdims=True)
+        points -= centroid   # translation, move centroid to origin
+        furthest_distance = np.max(np.linalg.norm(points, axis=1))   # max distance from points to origin (centroid)
+        points /= furthest_distance   # scaling
+        return points
+
+    elif isinstance(points, torch.Tensor):
+        centroid = points.mean(dim=0, keepdim=True)
+        points -= centroid
+        furthest_distance = torch.norm(points, dim=1).max()
+        points /= furthest_distance
+        return points    
 
 def rotate_xyz(points, rotation_angles):
     '''    

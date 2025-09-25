@@ -1,27 +1,33 @@
 import os
+from pathlib import Path
 import pickle
 import numpy as np
 import open3d as o3d
-from torch.utils.data import Dataset
 from tqdm import tqdm
+from torch.utils.data import Dataset
 
 import utils.mesh_utils as mesh_utils
 import utils.pcd_utils as pcd_utils
 from configs.load_class_map import load_class_map
 
+PROJ_ROOT = Path(__file__).resolve().parents[2]
+
 class ModelNet(Dataset):
-    def __init__(self, root_dir, class_map, split='train', num_points=1024, cache_dir=None, use_cache=True):
-        self.root_dir = root_dir
+    def __init__(self, root='modelnet40_manually_aligned', class_map='modelnet11', 
+                split='train', num_points=1024, cache_dir=None, use_cache=True):        
+        self.root_dir = PROJ_ROOT / "data" / root
         self.split = split
         self.num_points = num_points
         self.class_map = class_map if isinstance(class_map, dict) else load_class_map(class_map)
 
-        self.cache_dir = cache_dir or os.path.join(root_dir, '_cache')
+        self.num_classes = len(set(self.class_map.values()))
+
+        self.cache_dir = cache_dir or os.path.join(self.root_dir, '_cache')
         os.makedirs(self.cache_dir, exist_ok=True)
 
         self.cache_file = os.path.join(
             self.cache_dir,
-            f'modelnet_{split}_{num_points}pts_{len(set(self.class_map.values()))}cls.pkl'
+            f'modelnet_{split}_{num_points}pts_{self.num_classes}cls.pkl'
         )
 
         if use_cache and os.path.exists(self.cache_file):
@@ -34,12 +40,15 @@ class ModelNet(Dataset):
             print("[ModelNet] Processing raw data...")
             self.data, self.labels = self._process_raw_data()
             if use_cache:
-                print(f"[ModelNet] Saving processed data to cache: {self.cache_file}")
+                print(f"\n[ModelNet] Saving processed data to cache: {self.cache_file}")
                 with open(self.cache_file, 'wb') as f:
                     pickle.dump({'data': self.data, 'labels': self.labels}, f)
                     
-        print(f"[ModelNet] Loaded {len(self.labels)} samples across {len(set(self.labels))} classes.\n")
-        
+        print(
+            f"[ModelNet] Loaded {len(self.labels)} samples from {split} split "
+            f"across {self.num_classes} classes ({num_points} pts per sample).\n"
+        )
+                
     def __len__(self):
         return len(self.labels)
 
@@ -48,7 +57,6 @@ class ModelNet(Dataset):
 
     def _process_raw_data(self):
         data, labels = [], []
-        total_classes = len(self.class_map)
     
         for class_idx, (class_name, label) in enumerate(self.class_map.items()):
             split_dirs = ['train', 'test'] if self.split == 'all' else [self.split]
@@ -58,9 +66,13 @@ class ModelNet(Dataset):
                 if not os.path.isdir(class_split_dir):
                     continue
                 file_list = sorted([f for f in os.listdir(class_split_dir) if f.endswith('.off')])
-    
-                print(f"[{class_idx+1}/{total_classes}] Class '{class_name}' ({split}): {len(file_list)} files")
-                for fname in tqdm(file_list, desc=f"    Processing {class_name}", leave=False):
+
+                tqdm.write(f"\n[{class_idx+1}/{len(self.class_map)}] Class {label:2d} '{class_name}' ({split}): {len(file_list)} files")
+                for fname in tqdm(
+                    file_list,
+                    desc=f"    Processing",
+                    leave=False
+                ):
                     mesh_path = os.path.join(class_split_dir, fname)
                     mesh = o3d.io.read_triangle_mesh(mesh_path)
                     mesh = mesh_utils.align_mesh(mesh, class_name)
@@ -77,39 +89,40 @@ class ModelNet(Dataset):
 
 
 if __name__ == "__main__":
-
-    # Resolve base directory and paths
-    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-    PROJ_ROOT = os.path.abspath(os.path.join(BASE_DIR, "../.."))
-    
-    DATA_DIR = os.path.join(PROJ_ROOT, "data/modelnet40_manually_aligned")
-    CLASS_MAP_PATH = os.path.join(PROJ_ROOT, "code/configs/class_map_modelnet11.json")
-    
-    split = "train"
+    # Set seeds
+    from utils.train_utils import set_seed
+    set_seed(42)
 
     dataset = ModelNet(
-        root_dir=DATA_DIR, 
-        class_map=CLASS_MAP_PATH, 
-        split=split
+        root="modelnet40_manually_aligned", 
+        class_map="modelnet11",
+        # split='test'
     )
 
-    class_names = list(dataset.class_map.keys())
+    from collections import defaultdict
+
+    label_to_classnames = defaultdict(list)
+    for name, label in dataset.class_map.items():
+        label_to_classnames[label].append(name)
 
     # Collect one example per class for visualization
     viz = True
     if viz: 
-      seen_labels = set()
-      sample_points = []
+        seen_labels = set()
+        sample_points = []
+    
+        print("[ModelNet] Collecting 1 sample per class for visualization...")
+        for i in range(len(dataset)):
+            points, label = dataset[i]
+
+            if label not in seen_labels:
+                sample_points.append(points)
+                seen_labels.add(label)
+
+                print(f"  - Class {label:2d} ({', '.join(label_to_classnames[label]):<20})")
+
+            if len(seen_labels) == dataset.num_classes:
+                break
   
-      print("[ModelNet] Collecting 1 sample per class for visualization...")
-      for i in range(len(dataset)):
-          points, label = dataset[i]
-          if label not in seen_labels:
-              sample_points.append(points)
-              seen_labels.add(label)
-              print(f"  - Class {label:2d} ({class_names[label]:>15}): points shape = {points.shape}")
-          if len(seen_labels) == len(class_names):
-              break
-  
-      print(f"\nVisualizing {len(sample_points)} point clouds (1 per class)...")
-      pcd_utils.viz_pcd(sample_points)    
+        print(f"\nVisualizing {dataset.num_classes} point clouds (1 per class)...")
+        pcd_utils.viz_pcd(sample_points)

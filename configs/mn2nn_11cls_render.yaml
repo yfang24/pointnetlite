@@ -1,0 +1,44 @@
+dataset: 
+  train:
+    name: modelnet_render
+    args:
+      root: modelnet40_manually_aligned
+      class_map: modelnet11
+      split: train
+      num_views: 8
+      viewpoint_mode: auto   # fixed (3 views), auto
+    transform:
+  #    - name: rotate
+  #      args: 
+  #        angle_deg: 30
+      - name: aug
+        args:
+          apply_scale: true
+          apply_rotation: true # y-axis random rotation
+        
+  test: 
+    name: scanobjectnn
+    args:
+      root: main_split_nobg
+      class_map: scanobjectnn11
+      split: test
+      normalize: true
+  #  transform: # used for voting
+  #    - name: rotate
+  #      args: 
+  #        angle_deg: 30
+         
+encoder: 
+  name: pointnetlite_encoder
+  args: {}
+
+head: 
+  name: pointnet_cls_head
+  args:
+    out_dim: 11
+
+loss: cross_entropy
+
+epochs: 200
+batch_size: 32
+ddp: false
